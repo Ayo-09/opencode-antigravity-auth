@@ -7,7 +7,14 @@
 
 ## التشغيل
 
-افتح `game/index.html` مباشرة في المتصفح، أو شغّل خادمًا محليًا:
+**أمر مباشر (يُنشئ الخادم ويفتح المتصفح تلقائيًا):**
+
+```bash
+./game/run.sh            # macOS / Linux
+game\run.bat             # Windows (ثم http://localhost:8080)
+```
+
+أو يدويًا — افتح `game/index.html` مباشرة في المتصفح، أو:
 
 ```bash
 cd game
