@@ -16,6 +16,8 @@ function makeCtx() {
       if (p === 'measureText') return () => ({ width: 10 });
       if (p === 'createLinearGradient' || p === 'createRadialGradient')
         return () => ({ addColorStop() {} });
+      if (p === 'createImageData')
+        return (w, h) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h });
       if (p in t) return t[p];
       return () => undefined;
     },
@@ -167,6 +169,22 @@ console.log('smoke: menu round-trip');
 D.toMenu();
 pump(5);
 check('back to menu', D.state === 'menu');
+
+console.log('smoke: skill tree (GDD §7)');
+D.bank.shards = 10;
+check('unlock fire node 1 (spark)', D.unlock('spark') === true);
+check('spark registered', D.has('spark'));
+check('cost deducted (10 -> 9)', D.bank.shards === 9);
+check('unlock ash node 1 (skin)', D.unlock('skin') === true);
+check('cannot skip: blade node 2 blocked', D.unlock('edge') === false);
+check('can unlock blade node 1', D.unlock('step') === true);
+D.startRun();
+pump(10);
+check('skin raises max HP to 125', D.maxHp === 125);
+check('spark/heart burn fields exist on enemies', (() => { D.spawn('outcast', 1); const e = D.enemies.find(x => x.kind === 'outcast'); return e && typeof e.burn === 'number' && typeof e.slowT === 'number'; })());
+check('skills persisted in store', D.skills.unlocked.includes('spark') && D.skills.unlocked.includes('skin') && D.skills.unlocked.includes('step'));
+D.toMenu();
+pump(5);
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

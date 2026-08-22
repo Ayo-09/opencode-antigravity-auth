@@ -14,6 +14,7 @@ function makeCtx() {
     get(t, p) {
       if (p === 'canvas') return { width: 1280, height: 720 };
       if (p === 'createLinearGradient' || p === 'createRadialGradient') return () => ({ addColorStop() {} });
+      if (p === 'createImageData') return (w, h) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h });
       if (p in t) return t[p];
       return () => undefined;
     },
@@ -70,7 +71,7 @@ pump(30);
 for (let w = 0; w < 4; w++) {
   let guard = 0;
   while (guard++ < 900) {
-    if (D.enemies.length === 0 && D.pending === 0 && !D.boss) break;
+    if (D.boss || (D.enemies.length === 0 && D.pending === 0)) break;
     keepAlive();
     D.killNearest();
     pump(5);
@@ -80,6 +81,7 @@ for (let w = 0; w < 4; w++) {
 check('boss engaged after 4 waves', !!D.boss);
 pump(150);
 check('boss entered arena', D.boss && D.boss.state !== 'enter');
+check('camera zoomed into boss fight', D.cam.zoom > 1.15);
 
 function pickLivePillar(minX) {
   const alive = D.pillars.filter(p => p.alive && p.x >= minX);
@@ -151,6 +153,7 @@ console.log('fullrun: enrage effects (arena shrink + fire patches)');
 for (let i = 0; i < 60; i++) { keepAlive(); pump(10); }
 check('arena shrinking started', D.arenaT > 0);
 check('fire patches spawning', D.patches.length > 0);
+check('camera pushed in on enrage', D.cam.zoom > 1.28);
 
 console.log('fullrun: finish boss -> victory');
 D.setBossHP(1);

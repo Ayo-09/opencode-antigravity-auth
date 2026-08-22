@@ -65,7 +65,21 @@
     </div>
 
     <button class="btn primary big" id="btn-start">ابدأ المعركة</button>
-    <div class="foot">كل المكافآت تُكسب باللعب — لا دفع إجباري ولا إعلانات مزعجة · v0.1</div>
+    <button class="btn ghost" id="btn-skills" style="margin-top:10px">شجرة المهارات <span class="kbd-hint">(T)</span></button>
+    <div class="foot">كل المكافآت تُكسب باللعب — لا دفع إجباري ولا إعلانات مزعجة · v0.2</div>
+  </div>
+</div>
+
+<!-- ====== شجرة المهارات ====== -->
+<div class="overlay hidden" id="ov-skills">
+  <div class="panel skills-panel">
+    <div class="skills-head">
+      <h2 class="p-title" style="margin:0">شجرة المهارات</h2>
+      <div class="skills-bank">شظايا الروح: <b id="skill-shards">0</b></div>
+      <button class="btn ghost small" id="btn-skills-close">إغلاق <span class="kbd-hint">(Esc)</span></button>
+    </div>
+    <div class="skills-grid" id="skills-grid"></div>
+    <div class="foot">تُفتح العقد بالترتيب داخل كل طريق — والعقد النهائية ◆ تتطلب إكمال سبلك</div>
   </div>
 </div>
 
@@ -75,6 +89,7 @@
     <h2 class="p-title">إيقاف مؤقت</h2>
     <div class="btn-col">
       <button class="btn primary" id="btn-resume">استئناف <span class="kbd-hint">(P)</span></button>
+      <button class="btn ghost" id="btn-skills-p">شجرة المهارات <span class="kbd-hint">(T)</span></button>
       <button class="btn ghost" id="btn-restart-p">إعادة من البداية</button>
       <button class="btn ghost" id="btn-menu-p">القائمة الرئيسية</button>
       <button class="btn ghost" id="btn-mute">كتم الصوت: <span id="mute-label">مفعّل</span></button>
