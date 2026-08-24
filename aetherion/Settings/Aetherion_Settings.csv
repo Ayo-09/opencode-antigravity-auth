@@ -1,0 +1,100 @@
+﻿المجموعة,المتغير,النوع,Default,Conservative,Balanced,Aggressive,Crypto/USDT,Forex,Gold,Scalp,أدنى,أقصى,خطوة,تحسين؟,الوصف عربي,Description EN
+IDENTITY,InpMagic,long,260824,260824,260824,260824,260824,260824,260824,260824,1,999999999,1,N,رقم السحر لتمييز صفقات البوت,Magic number isolating EA trades
+IDENTITY,InpTradeComment,string,AETHERION,AETHERION,AETHERION,AETHERION,AETHERION,AETHERION,AETHERION,AETHERION,,,,N,تعليق الأمر في التاريخ,Order comment written to history
+IDENTITY,InpLanguage,enum,0,0,0,0,0,0,0,0,0,1,1,N,لغة لوحة الشارت 0 عربي 1 إنجليزي,HUD language 0=AR 1=EN
+AUTO,InpAutoDetect,bool,1,1,1,1,1,1,1,1,0,1,1,N,تعرف تلقائي على الرمز والإطار من الشارت,Auto-detect chart symbol and timeframe
+AUTO,InpForceSymbol,string,,,,,,,,,,,,N,إجبار رمز معيّن — اتركه فارغاً للشارت,"Force symbol, empty = chart"
+AUTO,InpForceTF,enum,0,0,0,0,0,0,0,0,0,0,0,N,إجبار إطار — PERIOD_CURRENT = الشارت,"Force TF, CURRENT = chart"
+STRATEGY,InpStrategy,enum,0,1,0,3,0,1,1,4,0,4,1,Y,0 تلقائي 1 اتجاه 2 نطاق 3 اختراق 4 سكالب,0 Auto 1 Trend 2 Range 3 Breakout 4 Scalp
+STRATEGY,InpSignalOnNewBar,bool,1,1,1,0,1,1,1,0,0,1,1,N,إشارة على إغلاق الشمعة فقط (بدون إعادة رسم),Signal on closed bar only (no repaint)
+STRATEGY,InpConfirmBars,int,1,2,1,0,1,1,1,0,0,5,1,Y,شموع تأكيد إضافية,Extra confirmation bars
+STRATEGY,InpAllowBuy,bool,1,1,1,1,1,1,1,1,0,1,1,N,السماح بالشراء,Allow BUY
+STRATEGY,InpAllowSell,bool,1,1,1,1,1,1,1,1,0,1,1,N,السماح بالبيع,Allow SELL
+STRATEGY,InpCloseOnOpposite,bool,1,1,1,1,1,1,1,1,0,1,1,N,إغلاق الصفقة عند الإشارة المعاكسة,Close on opposite signal
+STRATEGY,InpOneDirection,bool,1,1,1,0,1,1,1,0,0,1,1,N,اتجاه واحد لكل رمز,One direction per symbol
+EMA,InpUseEMA,bool,1,1,1,1,1,1,1,1,0,1,1,N,تفعيل فلتر المتوسطات,Enable EMA filter
+EMA,InpEMAFast,int,21,34,21,13,21,21,21,8,5,80,1,Y,المتوسط السريع,Fast EMA
+EMA,InpEMASlow,int,55,89,55,34,55,55,55,21,10,200,1,Y,المتوسط البطيء,Slow EMA
+EMA,InpEMATrend,int,200,200,200,100,200,200,200,50,20,400,5,Y,متوسط الاتجاه العام,Higher-timeframe trend EMA
+RSI,InpUseRSI,bool,1,1,1,1,1,1,1,1,0,1,1,N,تفعيل RSI,Enable RSI
+RSI,InpRSIPeriod,int,14,14,14,10,14,14,14,7,5,30,1,Y,فترة RSI,RSI period
+RSI,InpRSIBuyMin,double,42,45,42,40,40,42,42,38,20,60,1,Y,حد RSI الأدنى للشراء الاتجاهي,Trend BUY RSI floor
+RSI,InpRSIBuyMax,double,68,65,68,72,70,68,68,75,50,90,1,Y,حد RSI الأعلى للشراء الاتجاهي,Trend BUY RSI ceiling
+RSI,InpRSISellMin,double,32,35,32,28,30,32,32,25,10,50,1,Y,حد RSI الأدنى للبيع الاتجاهي,Trend SELL RSI floor
+RSI,InpRSISellMax,double,58,55,58,60,60,58,58,62,40,80,1,Y,حد RSI الأعلى للبيع الاتجاهي,Trend SELL RSI ceiling
+RSI,InpRSIRangeLow,double,30,25,30,28,28,30,30,20,10,40,1,Y,تشبع بيعي للنطاق,Range oversold
+RSI,InpRSIRangeHigh,double,70,75,70,72,72,70,70,80,60,90,1,Y,تشبع شرائي للنطاق,Range overbought
+MACD,InpUseMACD,bool,1,1,1,1,1,1,1,0,0,1,1,N,تفعيل MACD,Enable MACD
+MACD,InpMACDFast,int,12,12,12,8,12,12,12,6,5,24,1,Y,MACD السريع,MACD fast
+MACD,InpMACDSlow,int,26,26,26,21,26,26,26,13,10,52,1,Y,MACD البطيء,MACD slow
+MACD,InpMACDSignal,int,9,9,9,7,9,9,9,5,3,18,1,Y,خط إشارة MACD,MACD signal
+ADX,InpUseADX,bool,1,1,1,1,1,1,1,0,0,1,1,N,تفعيل نظام ADX,Enable ADX regime
+ADX,InpADXPeriod,int,14,14,14,10,14,14,14,10,5,30,1,Y,فترة ADX,ADX period
+ADX,InpADXMin,double,18,22,18,14,16,18,20,12,8,30,1,Y,أدنى ADX للتداول الاتجاهي,Minimum ADX to trade trend
+ADX,InpADXTrend,double,25,28,25,22,24,25,26,20,15,40,1,Y,ADX للاتجاه القوي,Strong-trend ADX
+BB,InpUseBB,bool,1,1,1,1,1,1,1,1,0,1,1,N,تفعيل بولينجر,Enable Bollinger
+BB,InpBBPeriod,int,20,20,20,16,20,20,20,14,10,40,1,Y,فترة بولينجر,BB period
+BB,InpBBDev,double,2.0,2.2,2.0,1.8,2.2,2.0,2.0,1.8,1.2,3.2,0.1,Y,انحراف بولينجر,BB deviation
+ATR,InpATRPeriod,int,14,14,14,10,14,14,14,7,5,30,1,Y,فترة ATR,ATR period
+ATR,InpATRSL,double,1.8,2.4,1.8,1.4,2.4,1.8,2.2,1.2,0.8,4.0,0.1,Y,وقف الخسارة = ATR ×,Stop-loss = ATR ×
+ATR,InpATRTP,double,2.8,3.2,2.8,2.2,3.0,2.8,3.0,1.8,1.0,6.0,0.1,Y,جني الربح = ATR ×,Take-profit = ATR ×
+ATR,InpATRTrail,double,1.2,1.6,1.2,0.9,1.5,1.2,1.4,0.8,0.4,3.0,0.1,Y,المتحرك = ATR ×,Trailing distance = ATR ×
+ATR,InpMinATRPoints,double,0,0,0,0,0,0,0,0,0,5000,1,N,أدنى ATR بالنقاط (0=إيقاف),Min ATR in points (0=off)
+ATR,InpMaxATRPoints,double,0,0,0,0,0,0,0,0,0,20000,10,N,أقصى ATR بالنقاط (0=إيقاف),Max ATR in points (0=off)
+RISK,InpLotMode,enum,1,1,1,1,1,1,1,0,0,2,1,N,0 ثابت 1 نسبة مخاطرة 2 خطوة رصيد,0 Fixed 1 Risk% 2 Equity step
+RISK,InpFixedLot,double,0.01,0.01,0.01,0.05,0.01,0.01,0.01,0.02,0.01,10,0.01,N,لوت ثابت,Fixed lot
+RISK,InpRiskPercent,double,0.75,0.4,0.75,1.5,0.5,0.75,0.6,0.35,0.1,5.0,0.05,Y,نسبة المخاطرة من حقوق الملكية,Risk percent of equity
+RISK,InpEquityStep,double,1000,2000,1000,500,1000,1000,1000,1000,100,10000,100,N,خطوة الرصيد,Equity step $
+RISK,InpLotPerStep,double,0.01,0.01,0.01,0.02,0.01,0.01,0.01,0.01,0.01,1,0.01,N,لوت لكل خطوة,Lot per equity step
+RISK,InpMinLot,double,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,1,0.01,N,أدنى لوت,Minimum lot
+RISK,InpMaxLot,double,2.0,0.5,2.0,5.0,1.0,2.0,1.5,0.5,0.01,50,0.01,N,أقصى لوت,Maximum lot
+RISK,InpMaxPositions,int,1,1,1,3,1,1,1,2,1,20,1,Y,أقصى عدد صفقات مفتوحة,Max open positions
+RISK,InpMaxPerSymbol,int,1,1,1,2,1,1,1,1,1,10,1,N,أقصى صفقات لنفس الرمز,Max positions per symbol
+RISK,InpMaxTradesDay,int,8,4,8,16,6,8,6,20,1,80,1,Y,أقصى صفقات في اليوم,Max trades per day
+RISK,InpCooldownBars,int,2,4,2,1,3,2,3,1,0,20,1,Y,شموع انتظار بين الدخول,Cooldown bars between entries
+RISK,InpMaxDailyLossPct,double,3.0,1.5,3.0,5.0,2.5,3.0,2.5,2.0,0.5,15,0.5,Y,إيقاف يومي عند خسارة %,Daily loss halt %
+RISK,InpMaxDrawdownPct,double,12.0,8.0,12.0,18.0,10.0,12.0,10.0,10.0,3,40,1,Y,إيقاف عند ذروة هبوط %,Max equity drawdown %
+RISK,InpEmergencyClose,bool,1,1,1,1,1,1,1,1,0,1,1,N,إغلاق كل الصفقات عند خرق الحد,Flatten all on risk breach
+SPREAD,InpAutoSpread,bool,1,1,1,1,1,1,1,1,0,1,1,N,سقف سبريد تلقائي حسب فئة الأصل,Auto spread cap by asset class
+SPREAD,InpMaxSpreadPoints,int,35,25,35,60,250,30,80,40,0,2000,5,Y,أقصى سبريد يدوي بالنقاط,Manual max spread in points
+SPREAD,InpSpreadATRMax,double,0.35,0.25,0.35,0.5,0.4,0.3,0.3,0.45,0.05,1.5,0.05,Y,حظر إذا السبريد > ATR ×,Block if spread > ATR ×
+SPREAD,InpSlippage,int,20,10,20,40,40,15,25,30,1,200,1,N,أقصى انحراف سعر,Max price deviation (points)
+SPREAD,InpRetryRequote,bool,1,1,1,1,1,1,1,1,0,1,1,N,إعادة المحاولة عند تغير السعر,Retry on requote / price change
+SPREAD,InpMaxRetries,int,3,2,3,4,4,3,3,3,1,8,1,N,عدد محاولات الإرسال,Max send retries
+EXITS,InpUseSL,bool,1,1,1,1,1,1,1,1,0,1,1,N,استخدام وقف الخسارة — لا تعطّله على الحساب الحقيقي,Use stop-loss — do not disable on live
+EXITS,InpUseTP,bool,1,1,1,1,1,1,1,1,0,1,1,N,استخدام جني الربح,Use take-profit
+EXITS,InpSLPoints,int,0,0,0,0,0,0,0,0,0,5000,10,N,وقف بالنقاط (0 = ATR),SL in points (0 = ATR)
+EXITS,InpTPPoints,int,0,0,0,0,0,0,0,0,0,10000,10,N,هدف بالنقاط (0 = ATR/RR),TP in points (0 = ATR/RR)
+EXITS,InpUseRR,bool,1,1,1,1,1,1,1,1,0,1,1,N,حساب الهدف من نسبة العائد للمخاطرة,Take-profit from risk:reward
+EXITS,InpRR,double,1.6,2.0,1.6,1.2,1.8,1.6,1.8,1.1,0.8,4.0,0.1,Y,العائد : المخاطرة,Reward : Risk
+EXITS,InpBreakeven,bool,1,1,1,1,1,1,1,1,0,1,1,N,نقل الوقف لنقطة التعادل,Move stop to breakeven
+EXITS,InpBETriggerPoints,int,0,0,0,0,0,0,0,0,0,2000,5,N,تفعيل التعادل بالنقاط (0=ATR),BE trigger points (0=ATR)
+EXITS,InpBELockPoints,int,10,8,10,15,20,10,15,5,0,200,1,N,قفل ربح عند التعادل بالنقاط,Lock profit at BE (points)
+EXITS,InpTrailing,bool,1,1,1,1,1,1,1,1,0,1,1,N,وقف متحرك,Trailing stop
+EXITS,InpTrailStartPoints,int,0,0,0,0,0,0,0,0,0,3000,5,N,بداية المتحرك بالنقاط (0=ATR),Trail start points (0=ATR)
+EXITS,InpTrailStepPoints,int,0,0,0,0,0,0,0,0,0,1000,5,N,خطوة المتحرك بالنقاط (0=ATR),Trail step points (0=ATR)
+EXITS,InpPartialClose,bool,1,0,1,1,1,1,1,1,0,1,1,N,إغلاق جزئي,Partial close
+EXITS,InpPartialPercent,double,50,50,50,40,50,50,50,50,10,80,5,N,نسبة الإغلاق الجزئي,Partial close percent
+EXITS,InpPartialRR,double,1.0,1.2,1.0,0.8,1.0,1.0,1.0,0.7,0.5,3.0,0.1,Y,الإغلاق الجزئي عند مضاعف R,Partial at R-multiple
+SESSION,InpSessionFilter,bool,1,1,1,1,0,1,1,0,0,1,1,N,فلتر الجلسات (يُعطّل تلقائياً للكريبتو),Session filter (auto-off for crypto)
+SESSION,InpTradeAsia,bool,0,0,0,1,1,0,0,1,0,1,1,N,جلسة آسيا 00-08,Asia session 00-08
+SESSION,InpTradeLondon,bool,1,1,1,1,1,1,1,1,0,1,1,N,جلسة لندن 08-16,London session 08-16
+SESSION,InpTradeNewYork,bool,1,1,1,1,1,1,1,1,0,1,1,N,جلسة نيويورك 13-22,New York session 13-22
+SESSION,InpFridayCutoffHour,int,20,18,20,21,0,20,19,0,0,23,1,N,قطع الجمعة (0=إيقاف),Friday cutoff hour (0=off)
+SESSION,InpMondayDelayHours,int,1,2,1,0,0,1,1,0,0,8,1,N,تأخير الاثنين بالساعات,Monday delay hours
+SESSION,InpAvoidNewsWindow,bool,0,1,0,0,0,1,1,0,0,1,1,N,إيقاف داخل نافذة الأخبار,Pause inside news window
+SESSION,InpNewsHourStart,int,14,13,14,14,14,14,14,14,0,23,1,N,بداية نافذة الأخبار,News window start hour
+SESSION,InpNewsHourEnd,int,16,17,16,16,16,16,16,16,0,23,1,N,نهاية نافذة الأخبار,News window end hour
+SESSION,InpMaxHoldBars,int,0,48,0,0,0,24,36,12,0,500,1,N,خروج زمني بعد N شمعة (0=إيقاف),Time exit after N bars (0=off)
+ASSET,InpUseAssetProfiles,bool,1,1,1,1,1,1,1,1,0,1,1,N,تكييف الوقف والمخاطرة حسب فئة الأصل,Adapt SL/risk by asset class
+ASSET,InpCryptoRiskScale,double,0.7,0.5,0.7,0.85,0.7,0.7,0.7,0.5,0.2,1.0,0.05,Y,مضاعف مخاطرة الكريبتو/USDT,Crypto/USDT risk scale
+ASSET,InpCryptoATRSL,double,2.4,2.8,2.4,2.0,2.4,2.4,2.4,1.8,1.2,5.0,0.1,Y,وقف ATR للكريبتو,Crypto ATR stop
+ASSET,InpMetalATRSL,double,2.2,2.6,2.2,1.8,2.2,2.2,2.2,1.6,1.2,5.0,0.1,Y,وقف ATR للمعادن,Metals ATR stop
+ASSET,InpIndexATRSL,double,2.0,2.4,2.0,1.6,2.0,2.0,2.0,1.5,1.2,5.0,0.1,Y,وقف ATR للمؤشرات,Indices ATR stop
+ASSET,InpIndexGapFilter,bool,1,1,1,1,0,0,0,0,0,1,1,N,تجاوز فجوة الافتتاح للمؤشرات/الأسهم,Skip opening gap on indices/stocks
+UI,InpShowPanel,bool,1,1,1,1,1,1,1,1,0,1,1,N,إظهار لوحة الشارت,Show on-chart HUD
+UI,InpPanelX,int,18,18,18,18,18,18,18,18,0,800,1,N,موضع اللوحة X,Panel X
+UI,InpPanelY,int,28,28,28,28,28,28,28,28,0,800,1,N,موضع اللوحة Y,Panel Y
+UI,InpShowTradesOnChart,bool,1,1,1,1,1,1,1,1,0,1,1,N,رسم الصفقات الحية على الشارت,Draw live trades on chart
+UI,InpLogToJournal,bool,1,1,1,1,1,1,1,1,0,1,1,N,كتابة السجل في Journal,Write journal logs
+UI,InpTimerSec,int,1,1,1,1,1,1,1,1,1,10,1,N,تحديث اللوحة بالثواني,HUD refresh seconds

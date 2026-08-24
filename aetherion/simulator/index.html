@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AETHERION — Adaptive Intelligence</title>
+  <meta name="description" content="محاكاة حية لخبير AETHERION على ميتاتريدر 5 — سبريد حي، صفقات على الشارت، مقارنة رموز وأطر، واستيراد تقارير المختبر." />
+  <link rel="icon" href="assets/icon-mark.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/aetherion.css" />
+</head>
+<body>
+  <canvas id="aurora" aria-hidden="true"></canvas>
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <img class="mark" src="assets/logo-main.png" alt="AETHERION" />
+      <div class="brand-copy">
+        <img class="wordmark" src="assets/logo-wordmark.png" alt="AETHERION Adaptive Intelligence" />
+        <p class="tag" data-i18n="tag">خبير تكيّفي متعدد الأصول · MT5 · تعرّف تلقائي على الرمز والإطار</p>
+      </div>
+    </div>
+    <div class="top-meta">
+      <div class="chip live">
+        <span class="pulse"></span>
+        <span data-i18n="live">بث حي</span>
+      </div>
+      <div class="chip" id="clock">--:--:--</div>
+      <div class="chip" id="build">MT5 · 4000+</div>
+      <button class="ghost" id="langBtn" type="button">EN</button>
+    </div>
+  </header>
+
+  <section class="console">
+    <div class="console-row">
+      <label class="field">
+        <span data-i18n="symbol">الرمز</span>
+        <select id="symbol"></select>
+      </label>
+      <label class="field">
+        <span data-i18n="tf">الإطار</span>
+        <select id="tf">
+          <option>M1</option><option>M5</option><option>M15</option>
+          <option>M30</option><option selected>H1</option>
+          <option>H4</option><option>D1</option><option>W1</option>
+        </select>
+      </label>
+      <label class="field">
+        <span data-i18n="strategy">الاستراتيجية</span>
+        <select id="strategy">
+          <option value="auto" selected data-i18n="stAuto">تلقائي تكيّفي</option>
+          <option value="trend" data-i18n="stTrend">اتجاه</option>
+          <option value="range" data-i18n="stRange">نطاق</option>
+          <option value="break" data-i18n="stBreak">اختراق</option>
+          <option value="scalp" data-i18n="stScalp">سكالب</option>
+        </select>
+      </label>
+      <label class="field">
+        <span data-i18n="preset">الإعداد</span>
+        <select id="preset">
+          <option value="balanced">Default</option>
+          <option value="conservative">Conservative</option>
+          <option value="aggressive">Aggressive</option>
+          <option value="crypto">Crypto / USDT</option>
+          <option value="forex">Forex</option>
+          <option value="gold">Gold</option>
+          <option value="scalp">Scalp</option>
+        </select>
+      </label>
+      <label class="field grow">
+        <span data-i18n="speed">السرعة</span>
+        <input id="speed" type="range" min="0.4" max="18" step="0.2" value="3.2" />
+      </label>
+      <div class="actions">
+        <button id="playBtn" class="primary" type="button" data-i18n="pause">إيقاف</button>
+        <button id="stepBtn" class="ghost" type="button" data-i18n="step">شمعة</button>
+        <button id="resetBtn" class="ghost" type="button" data-i18n="reset">إعادة</button>
+      </div>
+    </div>
+    <div class="console-row slim">
+      <div class="detect" id="detect">
+        <span class="orb"></span>
+        <strong id="detectText">EURUSD · H1 · FOREX</strong>
+        <em data-i18n="autodetect">تعرّف تلقائي عند الوضع على الشارت</em>
+      </div>
+      <div class="drop" id="drop">
+        <input id="fileIn" type="file" accept=".htm,.html,.csv,.json" multiple hidden />
+        <button type="button" id="importBtn" class="ghost" data-i18n="import">استيراد Strategy Tester</button>
+        <span class="hint" data-i18n="importhint">HTM / CSV من المختبر الحقيقي</span>
+      </div>
+      <div class="actions">
+        <button id="csvBtn" class="ghost" type="button">CSV</button>
+        <button id="pngBtn" class="ghost" type="button">PNG</button>
+        <button id="cmpBtn" class="primary slim" type="button" data-i18n="compare">مقارنة الرموز × الأطر</button>
+      </div>
+    </div>
+  </section>
+
+  <main class="stage">
+    <aside class="hud">
+      <article class="card glow-cyan">
+        <header>
+          <span data-i18n="spread">السبريد الحي</span>
+          <b id="spreadState">OK</b>
+        </header>
+        <div class="spread-row">
+          <div>
+            <div class="mega" id="spreadPts">0.0</div>
+            <small>points</small>
+          </div>
+          <div class="thermo" aria-hidden="true"><i id="spreadBar"></i></div>
+          <div class="stack">
+            <span>BID <b id="bid">—</b></span>
+            <span>ASK <b id="ask">—</b></span>
+            <span>ATR <b id="atr">—</b></span>
+          </div>
+        </div>
+      </article>
+
+      <article class="card glow-gold">
+        <header>
+          <span data-i18n="equity">حقوق الملكية</span>
+          <b id="dayPnl">+0.00</b>
+        </header>
+        <div class="mega" id="equity">10,000.00</div>
+        <div class="mini-eq"><canvas id="spark"></canvas></div>
+        <div class="kv">
+          <span>DD</span><b id="dd">0.00%</b>
+          <span data-i18n="float">عائم</span><b id="flt">0.00</b>
+        </div>
+      </article>
+
+      <article class="card">
+        <header>
+          <span data-i18n="ai">نظام الذكاء</span>
+          <b id="regime">TREND</b>
+        </header>
+        <div class="rings">
+          <div class="ring" id="wrRing"><span id="wr">0%</span><small data-i18n="winrate">نسبة الفوز</small></div>
+          <div class="ring gold" id="pfRing"><span id="pf">0.00</span><small>PF</small></div>
+        </div>
+        <div class="kv">
+          <span data-i18n="pos">صفقات</span><b id="posN">0</b>
+          <span data-i18n="today">اليوم</span><b id="todayN">0</b>
+        </div>
+      </article>
+
+      <article class="card">
+        <header>
+          <span data-i18n="status">الحالة</span>
+          <b id="ready">READY</b>
+        </header>
+        <p class="reason" id="reason">في انتظار أول تقاطع تكيّفي…</p>
+        <div class="kv tiny">
+          <span>FILL</span><b id="fill">IOC</b>
+          <span>EXEC</span><b id="exec">MARKET</b>
+        </div>
+      </article>
+    </aside>
+
+    <section class="viewport">
+      <div class="chart-frame">
+        <div class="chart-hud">
+          <div>
+            <strong id="chartTitle">EURUSD</strong>
+            <span id="chartSub">H1 · FOREX · AUTO</span>
+          </div>
+          <div class="ohlc" id="ohlc">O —  H —  L —  C —</div>
+        </div>
+        <canvas id="chart"></canvas>
+        <div class="cross" id="crossTip" hidden></div>
+        <div class="watermark">AETHERION</div>
+      </div>
+      <div class="tape-wrap">
+        <header>
+          <span data-i18n="tape">شريط الصفقات الحية</span>
+          <b id="net">+0.00</b>
+        </header>
+        <ol id="tape"></ol>
+      </div>
+    </section>
+  </main>
+
+  <section class="labs">
+    <article class="lab">
+      <header>
+        <h2 data-i18n="curve">منحنى حقوق الملكية والهبوط</h2>
+        <span class="hint" data-i18n="curvehint">مرتبط بنتائج المختبر الحقيقية عند الاستيراد</span>
+      </header>
+      <canvas id="equityChart"></canvas>
+    </article>
+    <article class="lab">
+      <header>
+        <h2 data-i18n="info">انفوجراف نتائج الاختبار</h2>
+        <span class="hint" id="labSource">AETHERION lab · real-tick fixtures</span>
+      </header>
+      <div class="infographic" id="infoGrid"></div>
+    </article>
+  </section>
+
+  <section class="compare">
+    <header>
+      <h2 data-i18n="heat">مقارنة متعددة الرموز والأطر</h2>
+      <div class="legend">
+        <i></i> PF ضعيف
+        <i class="mid"></i> متوازن
+        <i class="hi"></i> قوي
+      </div>
+    </header>
+    <div class="heat-wrap">
+      <canvas id="heat"></canvas>
+    </div>
+    <div class="overlay-row">
+      <canvas id="overlay"></canvas>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <img src="assets/icon-mark.png" alt="" />
+    <p>
+      AETHERION v1.0.0 · ليست نصيحة استثمارية · اختبر على حساب تجريبي أولاً ·
+      السبريد الحي والملء التلقائي FOK/IOC/RETURN مفعّلان لتفادي أخطاء MT5 10016 / 10030
+    </p>
+  </footer>
+
+  <script src="js/engine.js"></script>
+  <script src="js/chart.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
