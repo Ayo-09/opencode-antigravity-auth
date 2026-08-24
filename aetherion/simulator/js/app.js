@@ -1,39 +1,53 @@
-/* AETHERION command deck */
+/* AETHERION command deck — no fabricated tester results */
 (function () {
   "use strict";
 
   const I18N = {
     ar: {
       tag: "خبير تكيّفي متعدد الأصول · MT5 · تعرّف تلقائي على الرمز والإطار",
-      live: "بث حي", symbol: "الرمز", tf: "الإطار", strategy: "الاستراتيجية",
+      live: "بث المحاكاة", symbol: "الرمز", tf: "الإطار", strategy: "الاستراتيجية",
       preset: "الإعداد", speed: "السرعة", pause: "إيقاف", play: "تشغيل",
-      step: "شمعة", reset: "إعادة",
+      step: "شمعة", reset: "إعادة", asset: "الفئة", allAssets: "كل الأصول",
       autodetect: "تعرّف تلقائي عند الوضع على الشارت",
-      import: "استيراد Strategy Tester", importhint: "HTM / CSV من المختبر الحقيقي",
-      compare: "مقارنة الرموز × الأطر", spread: "السبريد الحي",
-      equity: "حقوق الملكية", float: "عائم", ai: "نظام الذكاء",
+      import: "استيراد Strategy Tester", importhint: "HTM / CSV حقيقي — بلا نتائج قبل الرفع",
+      compare: "مقارنة التقارير المستوردة", spread: "السبريد الحي",
+      equity: "حقوق المحاكاة", float: "عائم", ai: "نظام الذكاء",
       winrate: "نسبة الفوز", pos: "صفقات", today: "اليوم", status: "الحالة",
-      tape: "شريط الصفقات الحية", curve: "منحنى حقوق الملكية والهبوط",
-      curvehint: "مرتبط بنتائج المختبر الحقيقية عند الاستيراد",
-      info: "انفوجراف نتائج الاختبار", heat: "مقارنة متعددة الرموز والأطر",
+      tape: "شريط الصفقات الحية", curve: "منحنى متزامن زمنياً",
+      curvehint: "محاذاة كل التقارير المستوردة على محور وقت واحد",
+      info: "انفوجراف التقارير المستوردة", heat: "مقارنة متعددة الرموز والأطر (من ملفاتك)",
       stAuto: "تلقائي تكيّفي", stTrend: "اتجاه", stRange: "نطاق",
       stBreak: "اختراق", stScalp: "سكالب",
+      saveWs: "حفظ مساحة العمل", loadWs: "تحميل",
+      gateTitle: "لا نتائج واقعية قبل ملفاتك",
+      gateBody: "الانفوجراف وتكاليف العمولة/السواب/الانزلاق ومقارنة الرموز وتوصيات الذكاء الاصطناعي تبقى فارغة حتى تسحب تقارير Strategy Tester الحقيقية (HTM أو CSV) من MT5.",
+      costs: "تقرير التكاليف · عمولة · سواب · انزلاق",
+      aiLab: "ذكاء AETHERION · توصيات قابلة للتنفيذ",
+      aiHint: "مستخرجة فقط من تقاريرك المستوردة",
+      simNote: "أرقام المحرك البصري فقط — ليست نتيجة مختبر.",
     },
     en: {
       tag: "Adaptive multi-asset EA · MT5 · auto-detects symbol & timeframe",
-      live: "LIVE", symbol: "Symbol", tf: "Timeframe", strategy: "Strategy",
+      live: "SIM LIVE", symbol: "Symbol", tf: "Timeframe", strategy: "Strategy",
       preset: "Preset", speed: "Speed", pause: "Pause", play: "Play",
-      step: "Bar", reset: "Reset",
+      step: "Bar", reset: "Reset", asset: "Asset", allAssets: "All assets",
       autodetect: "Auto-detects the moment it is dropped on a chart",
-      import: "Import Strategy Tester", importhint: "Real-lab HTM / CSV",
-      compare: "Compare symbols × TFs", spread: "Live spread",
-      equity: "Equity", float: "Float", ai: "AI regime",
+      import: "Import Strategy Tester", importhint: "Real HTM / CSV — no stats before upload",
+      compare: "Compare imported reports", spread: "Live spread",
+      equity: "Simulation equity", float: "Float", ai: "AI regime",
       winrate: "Win rate", pos: "Positions", today: "Today", status: "Status",
-      tape: "Live trade tape", curve: "Equity & drawdown",
-      curvehint: "Binds to real tester files when imported",
-      info: "Backtest infographic", heat: "Multi-symbol / multi-TF comparison",
+      tape: "Live trade tape", curve: "Time-aligned equity",
+      curvehint: "Every imported report snapped onto one time axis",
+      info: "Imported-report infographic", heat: "Multi-symbol / TF from your files",
       stAuto: "Adaptive auto", stTrend: "Trend", stRange: "Range",
       stBreak: "Breakout", stScalp: "Scalp",
+      saveWs: "Save workspace", loadWs: "Load",
+      gateTitle: "No realistic results before your files",
+      gateBody: "Infographic, commission/swap/slippage costs, comparison and AI stay empty until you drop real MT5 Strategy Tester HTM/CSV files.",
+      costs: "Cost report · commission · swap · slippage",
+      aiLab: "AETHERION intelligence · actionable calls",
+      aiHint: "Derived only from reports you imported",
+      simNote: "Visual engine numbers only — not a tester result.",
     },
   };
 
@@ -42,13 +56,11 @@
     lang: "ar",
     playing: true,
     speed: 3.2,
-    market: null,
-    catalog: [],
-    reports: {},
-    imported: null,
+    library: [],
     last: 0,
     acc: 0,
     heat: null,
+    importedDeals: [],
   };
 
   const engine = new Aetherion.Engine();
@@ -64,6 +76,10 @@
     });
     $("langBtn").textContent = state.lang === "ar" ? "EN" : "عربي";
     $("playBtn").textContent = state.playing ? pack.pause : pack.play;
+    fillAssetFilter();
+    fillSelect();
+    refreshSlots();
+    if (state.library.length) paintLab();
   }
 
   function fmt(n, d = 2) {
@@ -71,29 +87,50 @@
       minimumFractionDigits: d, maximumFractionDigits: d,
     });
   }
-
   function money(n) {
-    const s = (n >= 0 ? "+" : "") + fmt(n, 2);
-    return s;
+    return (n >= 0 ? "+" : "") + fmt(n, 2);
+  }
+
+  function fillAssetFilter() {
+    const sel = $("assetFilter");
+    const cur = sel.value || "ALL";
+    sel.innerHTML = "";
+    const all = document.createElement("option");
+    all.value = "ALL";
+    all.textContent = I18N[state.lang].allAssets;
+    sel.appendChild(all);
+    AetherionLab.GROUPS.forEach((g) => {
+      const o = document.createElement("option");
+      o.value = g.id;
+      o.textContent = state.lang === "ar" ? g.ar : g.en;
+      sel.appendChild(o);
+    });
+    if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
   }
 
   function fillSelect() {
+    const filter = $("assetFilter").value || "ALL";
     const sel = $("symbol");
+    const keep = sel.value;
     sel.innerHTML = "";
-    Object.keys(state.market || {}).forEach((s) => {
+    AetherionLab.UNIVERSE.filter((s) => filter === "ALL" || s.asset === filter).forEach((s) => {
       const o = document.createElement("option");
-      o.value = s; o.textContent = s;
+      o.value = s.symbol;
+      o.textContent = s.symbol + " · " + s.asset;
       sel.appendChild(o);
     });
-    if ([...sel.options].some((o) => o.value === "EURUSD")) sel.value = "EURUSD";
+    if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+    else if ([...sel.options].some((o) => o.value === "EURUSD")) sel.value = "EURUSD";
   }
 
   function currentBars() {
-    const sym = $("symbol").value;
-    const pack = state.market[sym];
-    if (!pack) return [];
-    const native = pack.meta.minutes || 60;
-    return Aetherion.prepareBars(pack.bars, native, $("tf").value);
+    const spec = AetherionLab.specOf($("symbol").value);
+    const raw = AetherionLab.synthesizeBars(spec, 760);
+    return Aetherion.prepareBars(raw, spec.minutes || 60, $("tf").value);
+  }
+
+  function dealsForSymbol(sym) {
+    return state.library.flatMap((r) => (r.deals || []).filter((d) => !d.symbol || d.symbol === sym || d.symbol === ""));
   }
 
   function bootEngine() {
@@ -105,43 +142,62 @@
       strategy: $("strategy").value,
       preset: $("preset").value,
     });
-    engine.load(currentBars());
-    const asset = engine.asset;
-    $("detectText").textContent = `${sym} · ${tf} · ${asset}`;
+    const bars = currentBars();
+    engine.load(bars);
+    state.importedDeals = AetherionLab.attachDealsToBars(bars, dealsForSymbol(sym));
+    $("detectText").textContent = `${sym} · ${tf} · ${engine.asset}`;
     $("chartTitle").textContent = sym;
-    $("chartSub").textContent = `${tf} · ${asset} · ${$("strategy").value.toUpperCase()}`;
+    $("chartSub").textContent = `${tf} · ${engine.asset} · ${$("strategy").value.toUpperCase()}`;
     $("tape").innerHTML = "";
-    paintInfo(reportOf(sym));
+    state.importedDeals.slice(-8).forEach((d) => pushTape(d, true));
     render();
   }
 
-  function reportOf(sym) {
-    return state.imported && state.imported.stats && (state.imported.stats.symbol === sym || !state.imported.stats.symbol)
-      ? { ...state.imported.stats, deals: state.imported.deals, curve: state.imported.curve, source: state.imported.source }
-      : state.reports[sym];
-  }
-
-  function pushTape(deal) {
+  function pushTape(deal, imported) {
     const li = document.createElement("li");
     li.className = deal.side === "BUY" ? "buy" : "sell";
     const pnl = deal.profit || 0;
-    li.innerHTML = `<span class="side">${deal.side}</span><span>${deal.exit || "IN"}</span><span class="px">${Number(deal.open || deal.px).toFixed(engine.digits)}</span><span class="pnl ${pnl >= 0 ? "up" : "dn"}">${money(pnl)}</span>`;
+    const tag = imported ? "LAB" : (deal.exit || "IN");
+    li.innerHTML = `<span class="side">${deal.side}</span><span>${tag}</span><span class="px">${Number(deal.open || deal.px || 0).toFixed(engine.digits)}</span><span class="pnl ${pnl >= 0 ? "up" : "dn"}">${money(pnl)}</span>`;
     $("tape").prepend(li);
     while ($("tape").children.length > 24) $("tape").lastChild.remove();
   }
 
+  function tradeTipHtml(deal, bar) {
+    if (deal) {
+      const pnl = Number(deal.profit) || 0;
+      const dur = (deal.tsOpen && deal.tsClose) ? Math.max(0, Math.round((deal.tsClose - deal.tsOpen) / 60000)) : null;
+      return `<h4>${deal.side} #${deal.ticket || "—"} · ${deal.symbol || engine.symbol}</h4>
+        <div><span class="k">IN</span> <span class="v">${deal.openTime || "—"} @ ${deal.open ?? deal.px ?? "—"}</span></div>
+        <div><span class="k">OUT</span> <span class="v">${deal.closeTime || "—"} @ ${deal.close ?? "—"} · ${deal.exit || ""}</span></div>
+        <div><span class="k">SL / TP</span> <span class="v">${deal.sl ?? "—"} / ${deal.tp ?? "—"}</span></div>
+        <div><span class="k">LOT</span> <span class="v">${deal.lots ?? "—"}</span></div>
+        <div><span class="k">P/L</span> <span class="${pnl >= 0 ? "up" : "dn"}">${money(pnl)}</span></div>
+        <div><span class="k">COMM / SWAP / SLIP</span> <span class="v">${fmt(deal.commission || 0, 2)} / ${fmt(deal.swap || 0, 2)} / ${fmt(deal.slippage || 0, 2)}</span></div>
+        ${dur != null ? `<div><span class="k">HOLD</span> <span class="v">${dur} min</span></div>` : ""}
+        ${deal.reason ? `<div><span class="k">WHY</span> <span class="v">${deal.reason}</span></div>` : ""}`;
+    }
+    if (!bar) return "";
+    return `<h4>${engine.symbol} ${engine.tf}</h4>
+      <div><span class="k">TIME</span> <span class="v">${bar.time}</span></div>
+      <div><span class="k">OHLC</span> <span class="v">${bar.open} / ${bar.high} / ${bar.low} / ${bar.close}</span></div>
+      <div><span class="k">SPREAD</span> <span class="v">${Number(engine.liveSpread || bar.spread || 0).toFixed(engine.digits)}</span></div>`;
+  }
+
   function render() {
     const snap = engine.snapshot();
+    snap.importedDeals = state.importedDeals;
     chart.draw(snap, {
-      onHover(b) {
-        $("ohlc").textContent = `O ${b.open.toFixed(snap.digits)}   H ${b.high.toFixed(snap.digits)}   L ${b.low.toFixed(snap.digits)}   C ${b.close.toFixed(snap.digits)}`;
+      onHover(b, idx, hover, deal) {
+        if (b) $("ohlc").textContent = `O ${b.open.toFixed(snap.digits)}   H ${b.high.toFixed(snap.digits)}   L ${b.low.toFixed(snap.digits)}   C ${b.close.toFixed(snap.digits)}`;
         const tip = $("crossTip");
         tip.hidden = false;
-        tip.textContent = `${b.time}  ·  spread ${Number(snap.spread).toFixed(snap.digits)}`;
-        const r = $("chart").getBoundingClientRect();
-        const x = chart.hover.x;
-        tip.style.left = (document.documentElement.dir === "rtl" ? r.width - x - 160 : x + 12) + "px";
-        tip.style.top = chart.hover.y + 12 + "px";
+        tip.innerHTML = tradeTipHtml(deal, b);
+        const host = $("chart").getBoundingClientRect();
+        const rtl = document.documentElement.dir === "rtl";
+        const left = rtl ? host.width - hover.x - 16 : hover.x + 14;
+        tip.style.left = Math.max(8, Math.min(host.width - 230, left)) + "px";
+        tip.style.top = Math.max(8, hover.y + 12) + "px";
       },
     });
     if (!chart.hover) {
@@ -161,7 +217,7 @@
 
     $("equity").textContent = fmt(snap.equity, 2);
     $("dayPnl").textContent = money(snap.daily);
-    $("dayPnl").className = snap.daily >= 0 ? "pos-ok" : "pos-bad";
+    $("dayPnl").className = "subline " + (snap.daily >= 0 ? "pos-ok" : "pos-bad");
     $("dd").textContent = snap.dd.toFixed(2) + "%";
     $("flt").textContent = money(snap.floating);
     $("regime").textContent = snap.regime;
@@ -178,37 +234,90 @@
     $("exec").textContent = snap.exec;
     $("net").textContent = money(snap.net);
     $("net").className = snap.net >= 0 ? "pos-ok" : "pos-bad";
-
-    const eq = snap.curve.slice(-80).map((c) => c.eq);
-    AXChart.spark($("spark"), eq, snap.net >= 0 ? "#00ff9d" : "#ff4d6d");
-    drawEquity(snap);
+    AXChart.spark($("spark"), snap.curve.slice(-80).map((c) => c.eq), snap.net >= 0 ? "#00ff9d" : "#ff4d6d");
   }
 
-  function drawEquity(snap) {
-    const src = state.imported && state.imported.curve && state.imported.curve.length
-      ? state.imported.curve
-      : snap.curve;
-    AXChart.lineChart($("equityChart"), [
-      { data: src.map((c) => ({ y: c.eq })), color: "#00f0ff", fill: "rgba(0,240,255,.08)", width: 2 },
-      { data: src.map((c) => ({ y: 10000 - c.dd * 40 })), color: "rgba(255,46,151,.7)", width: 1.2 },
-    ], { digits: 0 });
+  function hasLab() {
+    return state.library.length > 0;
   }
 
-  function paintInfo(rep) {
-    const snap = engine.snapshot();
-    const s = rep || {};
+  function setLabVisible(on) {
+    $("labGate").hidden = on;
+    $("labSection").hidden = !on;
+    $("intelSection").hidden = !on;
+    $("compareSection").hidden = !on;
+  }
+
+  function paintLab() {
+    if (!hasLab()) {
+      setLabVisible(false);
+      $("importCount").textContent = I18N[state.lang].importhint;
+      return;
+    }
+    setLabVisible(true);
+    $("importCount").textContent = state.library.length + (state.lang === "ar" ? " تقرير مستورد" : " imported report(s)");
+    const merged = {
+      net: state.library.reduce((s, r) => s + (Number(r.stats.net) || 0), 0),
+      pf: state.library.reduce((s, r) => s + (Number(r.stats.pf) || 0), 0) / state.library.length,
+      wr: state.library.reduce((s, r) => s + (Number(r.stats.winRate) || 0), 0) / state.library.length,
+      dd: Math.max(...state.library.map((r) => Number(r.stats.dd) || 0)),
+      trades: state.library.reduce((s, r) => s + (Number(r.stats.trades) || 0), 0),
+    };
     const cells = [
-      ["NET PROFIT", money(s.net ?? snap.net), (s.net ?? snap.net) >= 0 ? "up" : "dn"],
-      ["PROFIT FACTOR", (s.pf ?? snap.pf).toFixed(2), "hi"],
-      ["WIN RATE", ((s.winRate ?? snap.winRate) || 0).toFixed(1) + "%", ""],
-      ["MAX DD", ((s.dd ?? snap.dd) || 0).toFixed(2) + "%", "dn"],
-      ["TRADES", String(s.trades ?? snap.closed.length), ""],
-      ["SPREAD AVG", fmt(s.spreadAvg ?? snap.spread, snap.digits), ""],
+      ["NET PROFIT", money(merged.net), merged.net >= 0 ? "up" : "dn"],
+      ["PROFIT FACTOR", merged.pf.toFixed(2), "hi"],
+      ["WIN RATE", merged.wr.toFixed(1) + "%", ""],
+      ["MAX DD", merged.dd.toFixed(2) + "%", "dn"],
+      ["TRADES", String(merged.trades), ""],
+      ["REPORTS", String(state.library.length), ""],
     ];
     $("infoGrid").innerHTML = cells.map(([k, v, c]) => `<div class="stat ${c}"><span>${k}</span><b>${v}</b></div>`).join("");
-    $("labSource").textContent = s.source
-      ? "Imported · " + s.source
-      : (rep ? `Tester fixture · ${engine.symbol}` : "Live engine");
+    $("labSource").textContent = state.library.map((r) => r.source).join(" · ");
+
+    const aligned = AetherionLab.alignCurves(state.library);
+    const palette = ["#00f0ff", "#f5c542", "#ff2e97", "#00ff9d", "#7c5cff", "#ff8a3d"];
+    AXChart.lineChart($("equityChart"), aligned.map((s, i) => ({
+      data: s.data, color: palette[i % palette.length], width: 1.8,
+      fill: i === 0 ? "rgba(0,240,255,.06)" : null,
+    })), { digits: 0 });
+
+    const cost = AetherionLab.costReport(state.library);
+    $("costGrid").innerHTML = [
+      ["COMMISSION", fmt(cost.commission, 2), ""],
+      ["SWAP", fmt(cost.swap, 2), ""],
+      ["SLIPPAGE", fmt(cost.slippage, 2), ""],
+      ["COST DRAG", fmt(cost.costDrag, 2), "dn"],
+      ["COST / GROSS", cost.costRatio + "%", cost.costRatio >= 25 ? "dn" : "hi"],
+      ["NET AFTER COSTS", money(cost.net), cost.net >= 0 ? "up" : "dn"],
+    ].map(([k, v, c]) => `<div class="stat ${c}"><span>${k}</span><b>${v}</b></div>`).join("");
+    $("costHint").textContent = cost.missingCommission
+      ? (state.lang === "ar" ? "التقرير بلا عمولة ظاهرة — صدّر التقرير التفصيلي من MT5" : "No commission column — export the detailed MT5 report")
+      : "";
+    const rows = cost.bySymbol.slice(0, 8).map((r) =>
+      `<tr><td>${r.symbol}</td><td>${r.n}</td><td>${money(r.net)}</td><td>${fmt(r.comm, 2)}</td><td>${fmt(r.swap, 2)}</td></tr>`
+    ).join("");
+    $("costTable").innerHTML = `<thead><tr><th>SYM</th><th>N</th><th>NET</th><th>COMM</th><th>SWAP</th></tr></thead><tbody>${rows}</tbody>`;
+
+    $("aiList").innerHTML = AetherionLab.aiInsights(state.library, state.lang).map((c) =>
+      `<article class="ai-card ${c.level}"><b>${c.title}</b><p>${c.body}</p></article>`
+    ).join("");
+
+    runCompare();
+  }
+
+  function runCompare() {
+    if (!hasLab()) {
+      setLabVisible(false);
+      return;
+    }
+    const { matrix, tfs, syms } = AetherionLab.compareMatrix(state.library);
+    state.heat = { matrix, tfs, syms };
+    AXChart.heatmap($("heat"), matrix, tfs, syms);
+    const aligned = AetherionLab.alignCurves(state.library);
+    const palette = ["#00f0ff", "#f5c542", "#ff2e97", "#00ff9d", "#7c5cff", "#ff8a3d"];
+    AXChart.lineChart($("overlay"), aligned.map((s, i) => ({
+      data: s.data, color: palette[i % palette.length], width: 1.6,
+    })), { digits: 0 });
   }
 
   function tick(ts) {
@@ -226,10 +335,7 @@
           const r = $("chart").getBoundingClientRect();
           chart.burst(r.width * 0.82, r.height * 0.4, ev.opened.side === "BUY" ? "#00f0ff" : "#ff2e97");
         }
-        if (ev.closed) {
-          pushTape(ev.closed);
-          paintInfo(reportOf(engine.symbol));
-        }
+        if (ev.closed) pushTape(ev.closed);
         if (ev.done) {
           state.playing = false;
           applyLang();
@@ -241,11 +347,9 @@
     requestAnimationFrame(tick);
   }
 
-  /* aurora backdrop */
   const ag = $("aurora");
   const blobs = Array.from({ length: 5 }, (_, i) => ({
-    x: Math.random(), y: Math.random(),
-    r: 180 + i * 70,
+    x: Math.random(), y: Math.random(), r: 180 + i * 70,
     hue: [188, 46, 320, 150, 210][i],
     vx: 0.00012 * (i % 2 ? 1 : -1),
     vy: 0.00008 * (i % 3 ? 1 : -1),
@@ -269,13 +373,64 @@
     ctx.globalCompositeOperation = "source-over";
   }
 
-  function exportCSV() {
-    const rows = [["ticket", "symbol", "tf", "side", "openTime", "closeTime", "open", "close", "sl", "tp", "profit", "exit", "reason"]];
-    engine.closed.forEach((d) => {
-      rows.push([d.ticket, engine.symbol, engine.tf, d.side, d.t, d.closeTime, d.px, d.close, d.sl, d.tp, d.profit, d.exit, d.reason]);
+  function uiState() {
+    return {
+      name: "AETHERION " + ($("symbol").value || "") + " " + new Date().toISOString().slice(0, 16),
+      lang: state.lang,
+      symbol: $("symbol").value,
+      tf: $("tf").value,
+      strategy: $("strategy").value,
+      preset: $("preset").value,
+      speed: state.speed,
+    };
+  }
+
+  function applyWorkspace(ws) {
+    if (!ws) return;
+    if (ws.ui) {
+      state.lang = ws.ui.lang || state.lang;
+      if (ws.ui.symbol) $("symbol").value = ws.ui.symbol;
+      if (ws.ui.tf) $("tf").value = ws.ui.tf;
+      if (ws.ui.strategy) $("strategy").value = ws.ui.strategy;
+      if (ws.ui.preset) $("preset").value = ws.ui.preset;
+      if (ws.ui.speed) { state.speed = +ws.ui.speed; $("speed").value = state.speed; }
+    }
+    state.library = Array.isArray(ws.library) ? ws.library : [];
+    applyLang();
+    fillSelect();
+    if (ws.ui && ws.ui.symbol) $("symbol").value = ws.ui.symbol;
+    bootEngine();
+    paintLab();
+  }
+
+  function persist() {
+    const ws = AetherionLab.snapshotWorkspace(uiState(), state.library);
+    AetherionLab.saveLocal(ws);
+    refreshSlots();
+    return ws;
+  }
+
+  function refreshSlots() {
+    const sel = $("wsSlot");
+    const slots = AetherionLab.listSlots();
+    sel.innerHTML = `<option value="">${state.lang === "ar" ? "مساحات محفوظة" : "Saved workspaces"}</option>`;
+    slots.forEach((s) => {
+      const o = document.createElement("option");
+      o.value = s.name;
+      o.textContent = s.name;
+      sel.appendChild(o);
     });
-    const blob = new Blob([rows.map((r) => r.join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
-    download(blob, `AETHERION_${engine.symbol}_${engine.tf}.csv`);
+  }
+
+  function exportCSV() {
+    const rows = [["ticket", "symbol", "tf", "side", "openTime", "closeTime", "open", "close", "sl", "tp", "profit", "commission", "swap", "slippage", "exit", "reason", "source"]];
+    const deals = hasLab()
+      ? state.library.flatMap((r) => (r.deals || []).map((d) => ({ ...d, source: r.source })))
+      : engine.closed.map((d) => ({ ...d, open: d.px, source: "SIM" }));
+    deals.forEach((d) => {
+      rows.push([d.ticket, d.symbol || engine.symbol, d.tf || engine.tf, d.side, d.openTime || d.t, d.closeTime, d.open || d.px, d.close, d.sl, d.tp, d.profit, d.commission || 0, d.swap || 0, d.slippage || 0, d.exit, d.reason, d.source || ""]);
+    });
+    download(new Blob([rows.map((r) => r.join(",")).join("\n")], { type: "text/csv;charset=utf-8" }), `AETHERION_${engine.symbol}_${engine.tf}.csv`);
   }
 
   function exportPNG() {
@@ -291,7 +446,7 @@
     ctx.fillText("AETHERION  ·  " + engine.symbol + " " + engine.tf, 24, 48);
     ctx.fillStyle = "#8b93a7";
     ctx.font = "14px IBM Plex Mono";
-    ctx.fillText("Adaptive Intelligence  ·  live spread  ·  " + new Date().toISOString().slice(0, 16), 24, 70);
+    ctx.fillText((hasLab() ? "imported tester  ·  " : "simulation only  ·  ") + new Date().toISOString().slice(0, 16), 24, 70);
     out.toBlob((b) => download(b, `AETHERION_${engine.symbol}_${engine.tf}.png`));
   }
 
@@ -306,102 +461,74 @@
   async function ingestFiles(files) {
     for (const f of files) {
       const text = await f.text();
-      const parsed = Aetherion.parseTester(text, f.name);
-      state.imported = parsed;
-      parsed.deals.forEach(pushTape);
-      paintInfo({ ...parsed.stats, source: f.name, deals: parsed.deals, curve: parsed.curve });
-      if (parsed.stats.symbol && state.market[parsed.stats.symbol]) {
-        $("symbol").value = parsed.stats.symbol;
-        if (parsed.stats.tf) $("tf").value = parsed.stats.tf;
-        bootEngine();
-      }
-      drawEquity(engine.snapshot());
+      const parsed = AetherionLab.parseTester(text, f.name);
+      if (!parsed.deals.length && parsed.stats.net == null) continue;
+      state.library.push(parsed);
     }
-  }
-
-  function runCompare() {
-    const tfs = ["M15", "M30", "H1", "H4", "D1"];
-    const syms = Object.keys(state.market);
-    const matrix = [];
-    const overlay = [];
-    const palette = ["#00f0ff", "#f5c542", "#ff2e97", "#00ff9d", "#7c5cff", "#ff8a3d", "#67f6ff", "#e8eefc", "#4dd4ff", "#c9a227", "#ff6bb5"];
-    syms.forEach((sym, si) => {
-      const row = [];
-      tfs.forEach((tf) => {
-        const e = new Aetherion.Engine();
-        e.reset({ symbol: sym, tf, strategy: $("strategy").value, preset: $("preset").value });
-        const pack = state.market[sym];
-        e.load(Aetherion.prepareBars(pack.bars, pack.meta.minutes || 60, tf));
-        let guard = 0;
-        while (guard++ < 4000) {
-          const ev = e.step();
-          if (ev.done) break;
-        }
-        const s = e.snapshot();
-        row.push({ pf: s.pf || 0, net: s.net, wr: s.winRate, dd: s.dd, trades: s.closed.length });
-        if (tf === $("tf").value) {
-          overlay.push({
-            data: e.curve.map((c) => ({ y: c.eq })),
-            color: palette[si % palette.length],
-            width: 1.5,
-          });
-        }
-      });
-      matrix.push(row);
-    });
-    state.heat = { matrix, tfs, syms };
-    AXChart.heatmap($("heat"), matrix, tfs, syms);
-    AXChart.lineChart($("overlay"), overlay, { digits: 0 });
+    persist();
+    const last = state.library[state.library.length - 1];
+    if (last && last.stats.symbol && AetherionLab.UNIVERSE.some((s) => s.symbol === last.stats.symbol)) {
+      $("symbol").value = last.stats.symbol;
+      if (last.stats.tf) $("tf").value = last.stats.tf;
+    }
+    bootEngine();
+    paintLab();
   }
 
   function bind() {
-    $("langBtn").onclick = () => { state.lang = state.lang === "ar" ? "en" : "ar"; applyLang(); };
+    $("langBtn").onclick = () => { state.lang = state.lang === "ar" ? "en" : "ar"; applyLang(); persist(); };
     $("playBtn").onclick = () => { state.playing = !state.playing; applyLang(); };
     $("stepBtn").onclick = () => { engine.step(); render(); };
     $("resetBtn").onclick = () => bootEngine();
-    $("symbol").onchange = bootEngine;
-    $("tf").onchange = bootEngine;
-    $("strategy").onchange = bootEngine;
-    $("preset").onchange = bootEngine;
+    $("assetFilter").onchange = () => { fillSelect(); bootEngine(); };
+    $("symbol").onchange = () => { bootEngine(); persist(); };
+    $("tf").onchange = () => { bootEngine(); persist(); };
+    $("strategy").onchange = () => { bootEngine(); persist(); };
+    $("preset").onchange = () => { bootEngine(); persist(); };
     $("speed").oninput = (e) => (state.speed = +e.target.value);
     $("csvBtn").onclick = exportCSV;
     $("pngBtn").onclick = exportPNG;
     $("cmpBtn").onclick = runCompare;
     $("importBtn").onclick = () => $("fileIn").click();
     $("fileIn").onchange = (e) => ingestFiles(e.target.files);
+    $("saveWsBtn").onclick = () => {
+      const ws = persist();
+      download(new Blob([JSON.stringify(ws, null, 2)], { type: "application/json" }), (ws.name || "aetherion-workspace").replace(/\s+/g, "_") + ".json");
+    };
+    $("loadWsBtn").onclick = () => $("wsFile").click();
+    $("wsFile").onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      try { applyWorkspace(JSON.parse(await f.text())); persist(); } catch (_) {}
+    };
+    $("wsSlot").onchange = () => {
+      if (!$("wsSlot").value) return;
+      applyWorkspace(AetherionLab.loadLocal($("wsSlot").value));
+    };
     const drop = $("drop");
     ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.style.outline = "1px solid #00f0ff"; }));
     ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.style.outline = ""; }));
     drop.addEventListener("drop", (e) => ingestFiles(e.dataTransfer.files));
-    window.addEventListener("resize", () => { render(); if (state.heat) AXChart.heatmap($("heat"), state.heat.matrix, state.heat.tfs, state.heat.syms); });
+    window.addEventListener("resize", () => {
+      render();
+      if (hasLab()) paintLab();
+    });
     setInterval(() => {
       $("clock").textContent = new Date().toLocaleTimeString(state.lang === "ar" ? "ar-EG" : "en-GB");
     }, 1000);
   }
 
-  async function loadJSON(url) {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(url);
-    return r.json();
-  }
-
-  async function start() {
+  function start() {
     applyLang();
     bind();
-    try {
-      state.market = await loadJSON("data/market.json");
-      state.catalog = await loadJSON("data/catalog.json");
-      await Promise.all(Object.keys(state.market).map(async (s) => {
-        try { state.reports[s] = await loadJSON("data/report_" + s + ".json"); } catch (_) {}
-      }));
-    } catch (err) {
-      console.warn("fixture load", err);
-      state.market = {};
+    const saved = AetherionLab.loadLocal();
+    if (saved && saved.library && saved.library.length) applyWorkspace(saved);
+    else {
+      fillSelect();
+      bootEngine();
+      setLabVisible(false);
     }
-    fillSelect();
-    bootEngine();
     requestAnimationFrame(tick);
-    setTimeout(runCompare, 350);
   }
 
   start();

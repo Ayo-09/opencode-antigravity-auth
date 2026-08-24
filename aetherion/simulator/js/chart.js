@@ -55,11 +55,26 @@
       this.canvas = canvas;
       this.hover = null;
       this.flash = [];
+      this.hits = [];
+      this.hotDeal = null;
       canvas.addEventListener("mousemove", (e) => {
         const r = canvas.getBoundingClientRect();
         this.hover = { x: e.clientX - r.left, y: e.clientY - r.top };
       });
-      canvas.addEventListener("mouseleave", () => (this.hover = null));
+      canvas.addEventListener("mouseleave", () => {
+        this.hover = null;
+        this.hotDeal = null;
+        canvas.style.cursor = "crosshair";
+      });
+    }
+
+    nearestDeal(px, py) {
+      let best = null, bestD = 22;
+      this.hits.forEach((h) => {
+        const d = Math.hypot(h.x - px, h.y - py);
+        if (d < bestD) { bestD = d; best = h.deal; }
+      });
+      return best;
     }
 
     draw(snap, opts = {}) {
@@ -143,30 +158,46 @@
         ctx.fillRect(x - bw / 2, h - pad.b + 6 + (volH - vh), bw, vh);
       });
 
-      // live trades
-      const mark = (barIndex, price, side, label) => {
-        if (barIndex < start || barIndex >= end) return;
+      // live + imported trades
+      this.hits = [];
+      const mark = (barIndex, price, side, label, deal) => {
+        if (barIndex == null || barIndex < start || barIndex >= end || price == null) return;
         const i = barIndex - start;
         const x = X(i), y = Y(price);
+        const hot = deal && this.hotDeal && (this.hotDeal.ticket === deal.ticket) && (this.hotDeal.openTime === deal.openTime);
         ctx.save();
         ctx.shadowColor = side === "BUY" ? C.cyan : C.mag;
-        ctx.shadowBlur = 16;
+        ctx.shadowBlur = hot ? 28 : 16;
         ctx.fillStyle = side === "BUY" ? C.cyan : C.mag;
         ctx.beginPath();
+        const s = hot ? 1.35 : 1;
         if (side === "BUY") {
-          ctx.moveTo(x, y + 10); ctx.lineTo(x - 6, y + 20); ctx.lineTo(x + 6, y + 20);
+          ctx.moveTo(x, y + 10 * s); ctx.lineTo(x - 6 * s, y + 20 * s); ctx.lineTo(x + 6 * s, y + 20 * s);
         } else {
-          ctx.moveTo(x, y - 10); ctx.lineTo(x - 6, y - 20); ctx.lineTo(x + 6, y - 20);
+          ctx.moveTo(x, y - 10 * s); ctx.lineTo(x - 6 * s, y - 20 * s); ctx.lineTo(x + 6 * s, y - 20 * s);
         }
         ctx.closePath(); ctx.fill();
+        if (hot) {
+          ctx.strokeStyle = C.gold;
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.arc(x, y, 16, 0, Math.PI * 2);
+          ctx.stroke();
+        }
         ctx.font = "10px IBM Plex Mono";
         ctx.textAlign = "center";
         ctx.fillText(label, x, side === "BUY" ? y + 32 : y - 24);
         ctx.restore();
+        if (deal) this.hits.push({ x, y, deal });
       };
 
-      snap.closed.forEach((d) => {
-        if (d.i != null) mark(d.i, d.px, d.side, d.side[0]);
+      const pool = []
+        .concat(snap.closed || [])
+        .concat(snap.importedDeals || []);
+      pool.forEach((d) => {
+        const px = d.px != null ? d.px : d.open;
+        if (d.i != null) mark(d.i, px, d.side, (d.side || "B")[0], d);
+        if (d.iClose != null && d.close != null) mark(d.iClose, d.close, d.side, "X", d);
       });
       if (snap.pos) {
         mark(snap.pos.i, snap.pos.px, snap.pos.side, snap.pos.side);

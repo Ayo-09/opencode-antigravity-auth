@@ -474,7 +474,8 @@ ENUM_AE_ASSET CAetherionEngine::DetectAsset(const string sym)
                     "LINK","MATIC","TON","TRX","ATOM","UNI","NEAR","APT","ARB","OP",
                     "SHIB","PEPE","FIL","ICP","AAVE","XLM","ETC","BCH","LDO","INJ",
                     "SUI","SEI","TIA","WIF","BONK","ORDI","RUNE","FTM","ALGO","VET",
-                    "XTZ","EOS","THETA","AXS","SAND","MANA","GALA","IMX","RNDR","FET"};
+                    "XTZ","EOS","THETA","AXS","SAND","MANA","GALA","IMX","RNDR","FET",
+                    "HBAR","MKR","GRT","QNT","EGLD","KAS","STX","RENDER"};
    for(int i=0;i<ArraySize(crypto);i++)
       if(StringFind(raw,crypto[i])>=0)
          return(AE_ASSET_CRYPTO);

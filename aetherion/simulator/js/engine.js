@@ -4,10 +4,10 @@
 
   const ASSET_KEYS = {
     USDT: ["USDT", "USDC", "BUSD"],
-    CRYPTO: ["BTC", "ETH", "XRP", "SOL", "BNB", "ADA", "DOGE", "LTC", "DOT", "AVAX", "LINK", "TON", "TRX", "NEAR", "APT", "SUI"],
+    CRYPTO: ["BTC", "ETH", "XRP", "SOL", "BNB", "ADA", "DOGE", "LTC", "DOT", "AVAX", "LINK", "TON", "TRX", "NEAR", "APT", "SUI", "SHIB", "PEPE", "ATOM", "UNI", "ARB", "OP", "FIL", "INJ"],
     METAL: ["XAU", "XAG", "XPT", "XPD", "GOLD", "SILVER"],
-    ENERGY: ["WTI", "BRENT", "UKOIL", "USOIL", "XTI", "XBR", "NATGAS"],
-    INDEX: ["US30", "US500", "US100", "NAS100", "NASDAQ", "SPX", "SP500", "GER40", "DAX", "UK100", "JP225", "USTEC", "NDX"],
+    ENERGY: ["WTI", "BRENT", "UKOIL", "USOIL", "XTI", "XBR", "NATGAS", "NGAS"],
+    INDEX: ["US30", "US500", "US100", "NAS100", "NASDAQ", "SPX", "SP500", "GER40", "GER30", "DAX", "UK100", "JP225", "USTEC", "NDX", "DJ30", "DE40", "FRA40", "HK50"],
   };
 
   const PRESETS = {

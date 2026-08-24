@@ -37,6 +37,12 @@
   <section class="console">
     <div class="console-row">
       <label class="field">
+        <span data-i18n="asset">الفئة</span>
+        <select id="assetFilter">
+          <option value="ALL" data-i18n="allAssets">كل الأصول</option>
+        </select>
+      </label>
+      <label class="field">
         <span data-i18n="symbol">الرمز</span>
         <select id="symbol"></select>
       </label>
@@ -87,14 +93,18 @@
         <em data-i18n="autodetect">تعرّف تلقائي عند الوضع على الشارت</em>
       </div>
       <div class="drop" id="drop">
-        <input id="fileIn" type="file" accept=".htm,.html,.csv,.json" multiple hidden />
+        <input id="fileIn" type="file" accept=".htm,.html,.csv,.json,.xlsx" multiple hidden />
         <button type="button" id="importBtn" class="ghost" data-i18n="import">استيراد Strategy Tester</button>
-        <span class="hint" data-i18n="importhint">HTM / CSV من المختبر الحقيقي</span>
+        <span class="hint" id="importCount" data-i18n="importhint">HTM / CSV حقيقي — بلا نتائج قبل الرفع</span>
       </div>
       <div class="actions">
+        <button id="saveWsBtn" class="ghost" type="button" data-i18n="saveWs">حفظ مساحة العمل</button>
+        <button id="loadWsBtn" class="ghost" type="button" data-i18n="loadWs">تحميل</button>
+        <input id="wsFile" type="file" accept=".json" hidden />
+        <select id="wsSlot" class="slot"></select>
         <button id="csvBtn" class="ghost" type="button">CSV</button>
         <button id="pngBtn" class="ghost" type="button">PNG</button>
-        <button id="cmpBtn" class="primary slim" type="button" data-i18n="compare">مقارنة الرموز × الأطر</button>
+        <button id="cmpBtn" class="primary slim" type="button" data-i18n="compare">مقارنة التقارير المستوردة</button>
       </div>
     </div>
   </section>
@@ -122,15 +132,17 @@
 
       <article class="card glow-gold">
         <header>
-          <span data-i18n="equity">حقوق الملكية</span>
-          <b id="dayPnl">+0.00</b>
+          <span data-i18n="equity">حقوق المحاكاة</span>
+          <b id="simBadge" class="sim-badge">SIM</b>
         </header>
         <div class="mega" id="equity">10,000.00</div>
+        <div class="subline" id="dayPnl">+0.00</div>
         <div class="mini-eq"><canvas id="spark"></canvas></div>
         <div class="kv">
           <span>DD</span><b id="dd">0.00%</b>
           <span data-i18n="float">عائم</span><b id="flt">0.00</b>
         </div>
+        <p class="tiny-note" data-i18n="simNote">أرقام المحرك البصري فقط — ليست نتيجة مختبر.</p>
       </article>
 
       <article class="card">
@@ -171,7 +183,7 @@
           <div class="ohlc" id="ohlc">O —  H —  L —  C —</div>
         </div>
         <canvas id="chart"></canvas>
-        <div class="cross" id="crossTip" hidden></div>
+        <div class="cross rich" id="crossTip" hidden></div>
         <div class="watermark">AETHERION</div>
       </div>
       <div class="tape-wrap">
@@ -184,26 +196,54 @@
     </section>
   </main>
 
-  <section class="labs">
+  <section class="gate" id="labGate">
+    <div class="gate-card">
+      <span class="orb"></span>
+      <div>
+        <h2 data-i18n="gateTitle">لا نتائج واقعية قبل ملفاتك</h2>
+        <p data-i18n="gateBody">الانفوجراف وتكاليف العمولة/السواب/الانزلاق ومقارنة الرموز وتوصيات الذكاء الاصطناعي تبقى فارغة حتى تسحب تقارير Strategy Tester الحقيقية (HTM أو CSV) من MT5.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="labs" id="labSection" hidden>
     <article class="lab">
       <header>
-        <h2 data-i18n="curve">منحنى حقوق الملكية والهبوط</h2>
-        <span class="hint" data-i18n="curvehint">مرتبط بنتائج المختبر الحقيقية عند الاستيراد</span>
+        <h2 data-i18n="curve">منحنى متزامن زمنياً</h2>
+        <span class="hint" data-i18n="curvehint">محاذاة كل التقارير المستوردة على محور وقت واحد</span>
       </header>
       <canvas id="equityChart"></canvas>
     </article>
     <article class="lab">
       <header>
-        <h2 data-i18n="info">انفوجراف نتائج الاختبار</h2>
-        <span class="hint" id="labSource">AETHERION lab · real-tick fixtures</span>
+        <h2 data-i18n="info">انفوجراف التقارير المستوردة</h2>
+        <span class="hint" id="labSource">—</span>
       </header>
       <div class="infographic" id="infoGrid"></div>
     </article>
   </section>
 
-  <section class="compare">
+  <section class="labs split" id="intelSection" hidden>
+    <article class="lab">
+      <header>
+        <h2 data-i18n="costs">تقرير التكاليف · عمولة · سواب · انزلاق</h2>
+        <span class="hint" id="costHint"></span>
+      </header>
+      <div class="infographic" id="costGrid"></div>
+      <div class="table-wrap"><table id="costTable"></table></div>
+    </article>
+    <article class="lab ai-lab">
+      <header>
+        <h2 data-i18n="aiLab">ذكاء AETHERION · توصيات قابلة للتنفيذ</h2>
+        <span class="hint" data-i18n="aiHint">مستخرجة فقط من تقاريرك المستوردة</span>
+      </header>
+      <div id="aiList" class="ai-list"></div>
+    </article>
+  </section>
+
+  <section class="compare" id="compareSection" hidden>
     <header>
-      <h2 data-i18n="heat">مقارنة متعددة الرموز والأطر</h2>
+      <h2 data-i18n="heat">مقارنة متعددة الرموز والأطر (من ملفاتك)</h2>
       <div class="legend">
         <i></i> PF ضعيف
         <i class="mid"></i> متوازن
