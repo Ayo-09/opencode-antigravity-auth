@@ -4,7 +4,7 @@
 
 Drop it on any chart. It reads the symbol, the timeframe and the asset class by itself — forex, crypto, every USDT pair, metals, energy, indices and stocks.
 
-**v1.1.0** adds a higher-timeframe filter, bar confirmation, rollover pause, loss-streak cooldown and a spread-stability gate. The command deck never shows tester numbers until you import your own HTM/CSV.
+**v1.2.0** adds weekend flatten, quiet/volatile stand-aside, EMA pullback entries, breakeven after partials, gold/oil gap filter and a 24-hour hold cap. The command deck never shows tester numbers until you import your own HTM/CSV.
 
 ```
 aetherion/

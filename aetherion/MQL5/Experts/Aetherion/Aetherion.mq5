@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                                    Aetherion.mq5 |
-//|                     AETHERION Adaptive Intelligence EA v1.1.0    |
+//|                     AETHERION Adaptive Intelligence EA v1.2.0    |
 //|          Multi-asset · Auto symbol/TF · MT5 Build 4000+ safe     |
 //+------------------------------------------------------------------+
 #property copyright   "AETHERION Adaptive Intelligence"
 #property link        "https://aetherion.local"
-#property version     "1.10"
+#property version     "1.20"
 #property description "AETHERION — Adaptive multi-asset Expert Advisor"
 #property description "Auto-detects symbol, timeframe and asset class."
 #property description "Forex · Crypto/USDT · Metals · Energy · Indices · Stocks"
@@ -41,6 +41,7 @@ input ENUM_AE_STRATEGY     InpStrategy           = AE_STRAT_AUTO;    // Strategy
 input bool                 InpSignalOnNewBar     = true;             // Signal on new bar only
 input int                  InpConfirmBars        = 1;                // Extra same-color confirmation bars
 input bool                 InpUseHTF             = true;             // Higher-TF trend filter
+input bool                 InpPullback           = true;             // Trend entry only on EMA pullback
 input bool                 InpAllowBuy           = true;             // Allow BUY
 input bool                 InpAllowSell          = true;             // Allow SELL
 input bool                 InpCloseOnOpposite    = true;             // Close on opposite signal
@@ -139,10 +140,13 @@ input bool                 InpTradeLondon        = true;             // London 0
 input bool                 InpTradeNewYork       = true;             // NewYork 13-22 server
 input int                  InpFridayCutoffHour   = 20;               // Friday cutoff (0=off)
 input int                  InpMondayDelayHours   = 1;                // Monday delay hours
-input bool                 InpAvoidNewsWindow    = false;            // Pause in news window
-input int                  InpNewsHourStart      = 14;               // News window start
+input int                  InpServerUtcOffset    = 0;                // Server hours ahead of UTC
+input bool                 InpFridayFlatten      = true;             // Close positions before weekend
+input bool                 InpAvoidNewsWindow    = true;             // Pause in news window
+input int                  InpNewsHourStart      = 13;               // News window start
 input int                  InpNewsHourEnd        = 16;               // News window end
-input int                  InpMaxHoldBars        = 0;                // Time-exit bars (0=off)
+input int                  InpMaxHoldBars        = 0;                // Time-exit bars (0 = use hours)
+input int                  InpMaxHoldHours       = 24;               // Time-exit hours (0=off, skip crypto)
 
 input group "===== ASSET PROFILES ====="
 input bool                 InpUseAssetProfiles   = true;             // Adapt SL/risk by asset class
@@ -178,6 +182,7 @@ int OnInit()
    cfg.signalOnNewBar     = InpSignalOnNewBar;
    cfg.confirmBars        = MathMax(InpConfirmBars,0);
    cfg.useHTF             = InpUseHTF;
+   cfg.usePullback        = InpPullback;
    cfg.allowBuy           = InpAllowBuy;
    cfg.allowSell          = InpAllowSell;
    cfg.closeOnOpposite    = InpCloseOnOpposite;
@@ -256,10 +261,13 @@ int OnInit()
    cfg.tradeNY            = InpTradeNewYork;
    cfg.fridayCutoffHour   = InpFridayCutoffHour;
    cfg.mondayDelayHours   = InpMondayDelayHours;
+   cfg.serverUtcOffset    = InpServerUtcOffset;
+   cfg.fridayFlatten      = InpFridayFlatten;
    cfg.avoidNewsWindow    = InpAvoidNewsWindow;
    cfg.newsHourStart      = InpNewsHourStart;
    cfg.newsHourEnd        = InpNewsHourEnd;
    cfg.maxHoldBars        = InpMaxHoldBars;
+   cfg.maxHoldHours       = MathMax(InpMaxHoldHours,0);
    cfg.useAssetProfiles   = InpUseAssetProfiles;
    cfg.cryptoRiskScale    = InpCryptoRiskScale;
    cfg.cryptoATRSL        = InpCryptoATRSL;

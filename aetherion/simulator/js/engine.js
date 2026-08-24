@@ -11,13 +11,13 @@
   };
 
   const PRESETS = {
-    balanced: { risk: 0.75, atrSL: 1.8, rr: 1.6, adxMin: 18, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 6, spreadStableBars: 1, rolloverPause: true },
-    conservative: { risk: 0.4, atrSL: 2.4, rr: 2.0, adxMin: 22, rsiBuy: [45, 65], rsiSell: [35, 55], newBar: true, confirmBars: 2, useHTF: true, lossStreakMax: 2, lossStreakBars: 8, spreadStableBars: 2, rolloverPause: true },
-    aggressive: { risk: 1.5, atrSL: 1.4, rr: 1.2, adxMin: 14, rsiBuy: [40, 72], rsiSell: [28, 60], newBar: false, confirmBars: 0, useHTF: false, lossStreakMax: 0, lossStreakBars: 6, spreadStableBars: 0, rolloverPause: false },
-    crypto: { risk: 0.5, atrSL: 2.4, rr: 1.8, adxMin: 16, rsiBuy: [40, 70], rsiSell: [30, 60], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 6, spreadStableBars: 1, rolloverPause: false },
-    forex: { risk: 0.75, atrSL: 1.8, rr: 1.6, adxMin: 18, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 6, spreadStableBars: 1, rolloverPause: true },
-    gold: { risk: 0.6, atrSL: 2.2, rr: 1.8, adxMin: 20, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 8, spreadStableBars: 2, rolloverPause: true },
-    scalp: { risk: 0.35, atrSL: 1.2, rr: 1.1, adxMin: 12, rsiBuy: [38, 75], rsiSell: [25, 62], newBar: false, confirmBars: 0, useHTF: false, lossStreakMax: 4, lossStreakBars: 4, spreadStableBars: 1, rolloverPause: true },
+    balanced: { risk: 0.75, atrSL: 1.8, rr: 1.6, adxMin: 18, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 6, spreadStableBars: 1, rolloverPause: true, pullback: true, fridayFlatten: true, maxHoldHours: 24 },
+    conservative: { risk: 0.4, atrSL: 2.4, rr: 2.0, adxMin: 22, rsiBuy: [45, 65], rsiSell: [35, 55], newBar: true, confirmBars: 2, useHTF: true, lossStreakMax: 2, lossStreakBars: 8, spreadStableBars: 2, rolloverPause: true, pullback: true, fridayFlatten: true, maxHoldHours: 36 },
+    aggressive: { risk: 1.5, atrSL: 1.4, rr: 1.2, adxMin: 14, rsiBuy: [40, 72], rsiSell: [28, 60], newBar: false, confirmBars: 0, useHTF: false, lossStreakMax: 0, lossStreakBars: 6, spreadStableBars: 0, rolloverPause: false, pullback: false, fridayFlatten: false, maxHoldHours: 0 },
+    crypto: { risk: 0.5, atrSL: 2.4, rr: 1.8, adxMin: 16, rsiBuy: [40, 70], rsiSell: [30, 60], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 6, spreadStableBars: 1, rolloverPause: false, pullback: true, fridayFlatten: false, maxHoldHours: 48 },
+    forex: { risk: 0.75, atrSL: 1.8, rr: 1.6, adxMin: 18, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 6, spreadStableBars: 1, rolloverPause: true, pullback: true, fridayFlatten: true, maxHoldHours: 24 },
+    gold: { risk: 0.6, atrSL: 2.2, rr: 1.8, adxMin: 20, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 8, spreadStableBars: 2, rolloverPause: true, pullback: true, fridayFlatten: true, maxHoldHours: 36 },
+    scalp: { risk: 0.35, atrSL: 1.2, rr: 1.1, adxMin: 12, rsiBuy: [38, 75], rsiSell: [25, 62], newBar: false, confirmBars: 0, useHTF: false, lossStreakMax: 4, lossStreakBars: 4, spreadStableBars: 1, rolloverPause: true, pullback: false, fridayFlatten: true, maxHoldHours: 8 },
   };
 
   const TF_MIN = { M1: 1, M5: 5, M15: 15, M30: 30, H1: 60, H4: 240, D1: 1440, W1: 10080 };
@@ -305,6 +305,13 @@
 
     regime() {
       const a = this.adx.adx[this.idx] || 0;
+      const close = this.closes[this.idx] || 0;
+      const atrv = this.atr[this.idx] || 0;
+      const atrPct = close > 0 ? (100 * atrv) / close : 0;
+      const quietAdx = Math.min(14, (this.cfg.adxMin || 18) * 0.75);
+      const volCap = { FOREX: 0.45, METAL: 0.85, ENERGY: 1.1, INDEX: 0.8, STOCK: 0.8, CRYPTO: 2.8, USDT: 2.8 }[this.asset] || 1;
+      if (a < quietAdx) return "QUIET";
+      if (atrPct >= volCap) return "VOLATILE";
       if (a >= 25) return "TREND";
       if (a < this.cfg.adxMin) return "RANGE";
       return "TREND";
@@ -341,6 +348,8 @@
       else if (!spreadOk) block = "SPREAD";
       else if (spreadWait) block = "SPREAD WAIT";
       else if (roll) block = "ROLLOVER";
+      else if (this.regime() === "QUIET") block = "QUIET";
+      else if (this.regime() === "VOLATILE") block = "VOLATILE";
       else if (this.pos) block = "IN TRADE";
       return {
         symbol: this.symbol,
@@ -408,6 +417,9 @@
       const adxOk = (this.adx.adx[i] || 0) >= this.cfg.adxMin;
       const diBuy = this.adx.pdi[i] > this.adx.mdi[i];
       const diSell = this.adx.mdi[i] > this.adx.pdi[i];
+      const rg = this.regime();
+      if (rg === "QUIET") return { sig: 0, reason: "QUIET — no trade" };
+      if (rg === "VOLATILE") return { sig: 0, reason: "VOLATILE — stand aside" };
       const st = this.activeStrat();
       let sig = 0;
       let reason = "وضع الخمول";
@@ -426,6 +438,13 @@
         else return { sig: 0, reason: "لا اختراق مؤكد" };
       } else {
         return { sig: 0, reason };
+      }
+      if (this.cfg.pullback && st === "trend" && sig) {
+        const pbBuy = (low <= this.emaF[i] || low <= this.emaS[i]) && close > open;
+        const pbSell = (high >= this.emaF[i] || high >= this.emaS[i]) && close < open;
+        if (sig === 1 && !pbBuy) return { sig: 0, reason: "no EMA pullback" };
+        if (sig === -1 && !pbSell) return { sig: 0, reason: "no EMA pullback" };
+        reason += " +pullback";
       }
       const need = this.cfg.confirmBars || 0;
       if (need > 0 && sig) {
@@ -503,6 +522,16 @@
       if (!this.pos) return null;
       const b = this.bar();
       const p = this.pos;
+      const hm = parseBarHM(b.time);
+      const d = new Date(b.time);
+      const dow = Number.isNaN(+d) ? -1 : d.getUTCDay();
+      if (this.cfg.fridayFlatten && this.asset !== "CRYPTO" && this.asset !== "USDT" && dow === 5 && hm.h >= 19)
+        return this.closePos(b.close, "FRIDAY");
+      const holdH = this.cfg.maxHoldHours || 0;
+      if (holdH > 0 && this.asset !== "CRYPTO" && this.asset !== "USDT") {
+        const bars = Math.max(1, Math.round((holdH * 60) / (TF_MIN[this.tf] || 60)));
+        if (this.idx - (p.i || 0) >= bars) return this.closePos(b.close, "TIME");
+      }
       if (p.side === "BUY") {
         if (b.low <= p.sl) return this.closePos(p.sl, "SL");
         if (b.high >= p.tp) return this.closePos(p.tp, "TP");

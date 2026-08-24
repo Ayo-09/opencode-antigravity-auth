@@ -9,6 +9,7 @@ STRATEGY,InpStrategy,enum,0,1,0,3,0,1,1,4,0,4,1,Y,0 تلقائي 1 اتجاه 2 
 STRATEGY,InpSignalOnNewBar,bool,1,1,1,0,1,1,1,0,0,1,1,N,إشارة على إغلاق الشمعة فقط (بدون إعادة رسم),Signal on closed bar only (no repaint)
 STRATEGY,InpConfirmBars,int,1,2,1,0,1,1,1,0,0,5,1,Y,شموع تأكيد إضافية,Extra confirmation bars
 STRATEGY,InpUseHTF,bool,1,1,1,0,1,1,1,0,0,1,1,N,فلتر الاتجاه على إطار أعلى,Higher-timeframe EMA trend filter
+STRATEGY,InpPullback,bool,1,1,1,0,1,1,1,0,0,1,1,N,دخول الاتجاه عند ارتداد EMA,Trend entry only on EMA pullback
 STRATEGY,InpAllowBuy,bool,1,1,1,1,1,1,1,1,0,1,1,N,السماح بالشراء,Allow BUY
 STRATEGY,InpAllowSell,bool,1,1,1,1,1,1,1,1,0,1,1,N,السماح بالبيع,Allow SELL
 STRATEGY,InpCloseOnOpposite,bool,1,1,1,1,1,1,1,1,0,1,1,N,إغلاق الصفقة عند الإشارة المعاكسة,Close on opposite signal
@@ -87,10 +88,13 @@ SESSION,InpTradeLondon,bool,1,1,1,1,1,1,1,1,0,1,1,N,جلسة لندن 08-16,Lond
 SESSION,InpTradeNewYork,bool,1,1,1,1,1,1,1,1,0,1,1,N,جلسة نيويورك 13-22,New York session 13-22
 SESSION,InpFridayCutoffHour,int,20,18,20,21,0,20,19,0,0,23,1,N,قطع الجمعة (0=إيقاف),Friday cutoff hour (0=off)
 SESSION,InpMondayDelayHours,int,1,2,1,0,0,1,1,0,0,8,1,N,تأخير الاثنين بالساعات,Monday delay hours
-SESSION,InpAvoidNewsWindow,bool,0,1,0,0,0,1,1,0,0,1,1,N,إيقاف داخل نافذة الأخبار,Pause inside news window
-SESSION,InpNewsHourStart,int,14,13,14,14,14,14,14,14,0,23,1,N,بداية نافذة الأخبار,News window start hour
+SESSION,InpServerUtcOffset,int,0,0,0,0,0,0,0,0,0,12,1,N,فرق السيرفر عن UTC,Server hours ahead of UTC
+SESSION,InpFridayFlatten,bool,1,1,1,0,0,1,1,1,0,1,1,N,إغلاق الصفقات قبل عطلة الأسبوع,Flatten positions before weekend
+SESSION,InpAvoidNewsWindow,bool,1,1,1,0,0,1,1,1,0,1,1,N,إيقاف داخل نافذة الأخبار,Pause inside news window
+SESSION,InpNewsHourStart,int,13,13,14,14,14,14,14,14,0,23,1,N,بداية نافذة الأخبار,News window start hour
 SESSION,InpNewsHourEnd,int,16,17,16,16,16,16,16,16,0,23,1,N,نهاية نافذة الأخبار,News window end hour
 SESSION,InpMaxHoldBars,int,0,48,0,0,0,24,36,12,0,500,1,N,خروج زمني بعد N شمعة (0=إيقاف),Time exit after N bars (0=off)
+SESSION,InpMaxHoldHours,int,24,36,24,48,0,24,36,8,0,120,1,Y,خروج زمني بالساعات (ليس للكريبتو),Time-exit hours (skip crypto)
 ASSET,InpUseAssetProfiles,bool,1,1,1,1,1,1,1,1,0,1,1,N,تكييف الوقف والمخاطرة حسب فئة الأصل,Adapt SL/risk by asset class
 ASSET,InpCryptoRiskScale,double,0.7,0.5,0.7,0.85,0.7,0.7,0.7,0.5,0.2,1.0,0.05,Y,مضاعف مخاطرة الكريبتو/USDT,Crypto/USDT risk scale
 ASSET,InpCryptoATRSL,double,2.4,2.8,2.4,2.0,2.4,2.4,2.4,1.8,1.2,5.0,0.1,Y,وقف ATR للكريبتو,Crypto ATR stop
