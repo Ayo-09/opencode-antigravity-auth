@@ -4,6 +4,8 @@
 
 Drop it on any chart. It reads the symbol, the timeframe and the asset class by itself — forex, crypto, every USDT pair, metals, energy, indices and stocks.
 
+**v1.1.0** adds a higher-timeframe filter, bar confirmation, rollover pause, loss-streak cooldown and a spread-stability gate. The command deck never shows tester numbers until you import your own HTM/CSV.
+
 ```
 aetherion/
 ├── MQL5/Experts/Aetherion/     ← compile this folder in MetaEditor

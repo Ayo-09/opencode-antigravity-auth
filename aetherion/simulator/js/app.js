@@ -19,6 +19,8 @@
       stAuto: "تلقائي تكيّفي", stTrend: "اتجاه", stRange: "نطاق",
       stBreak: "اختراق", stScalp: "سكالب",
       saveWs: "حفظ مساحة العمل", loadWs: "تحميل",
+      clearLab: "مسح التقارير", tapeEmpty: "لا صفقات بعد — Space للتشغيل/الإيقاف",
+      toastSaved: "حُفظت مساحة العمل", toastImported: "استُورد التقرير", toastCleared: "مُسحت مكتبة المختبر",
       gateTitle: "لا نتائج واقعية قبل ملفاتك",
       gateBody: "الانفوجراف وتكاليف العمولة/السواب/الانزلاق ومقارنة الرموز وتوصيات الذكاء الاصطناعي تبقى فارغة حتى تسحب تقارير Strategy Tester الحقيقية (HTM أو CSV) من MT5.",
       costs: "تقرير التكاليف · عمولة · سواب · انزلاق",
@@ -42,6 +44,8 @@
       stAuto: "Adaptive auto", stTrend: "Trend", stRange: "Range",
       stBreak: "Breakout", stScalp: "Scalp",
       saveWs: "Save workspace", loadWs: "Load",
+      clearLab: "Clear reports", tapeEmpty: "No trades yet — Space to play/pause",
+      toastSaved: "Workspace saved", toastImported: "Report imported", toastCleared: "Lab library cleared",
       gateTitle: "No realistic results before your files",
       gateBody: "Infographic, commission/swap/slippage costs, comparison and AI stay empty until you drop real MT5 Strategy Tester HTM/CSV files.",
       costs: "Cost report · commission · swap · slippage",
@@ -76,6 +80,7 @@
     });
     $("langBtn").textContent = state.lang === "ar" ? "EN" : "عربي";
     $("playBtn").textContent = state.playing ? pack.pause : pack.play;
+    syncSpeed();
     fillAssetFilter();
     fillSelect();
     refreshSlots();
@@ -89,6 +94,36 @@
   }
   function money(n) {
     return (n >= 0 ? "+" : "") + fmt(n, 2);
+  }
+
+  let toastTimer = 0;
+  function toast(msg) {
+    const el = $("toast");
+    if (!el) return;
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.hidden = true; }, 2800);
+  }
+
+  function syncSpeed() {
+    const el = $("speed");
+    if (el) state.speed = +el.value;
+    const lab = $("speedVal");
+    if (lab) lab.textContent = state.speed.toFixed(1) + "×";
+  }
+
+  function maybeAutoPreset() {
+    const cur = $("preset").value;
+    if (["conservative", "aggressive", "scalp"].includes(cur)) return;
+    const asset = Aetherion.detectAsset($("symbol").value);
+    const next = Aetherion.presetForAsset(asset);
+    if (next && $("preset").querySelector('option[value="' + next + '"]'))
+      $("preset").value = next;
+  }
+
+  function resetTape() {
+    $("tape").innerHTML = '<li class="empty" data-i18n="tapeEmpty">' + I18N[state.lang].tapeEmpty + '</li>';
   }
 
   function fillAssetFilter() {
@@ -148,12 +183,14 @@
     $("detectText").textContent = `${sym} · ${tf} · ${engine.asset}`;
     $("chartTitle").textContent = sym;
     $("chartSub").textContent = `${tf} · ${engine.asset} · ${$("strategy").value.toUpperCase()}`;
-    $("tape").innerHTML = "";
+    resetTape();
     state.importedDeals.slice(-8).forEach((d) => pushTape(d, true));
     render();
   }
 
   function pushTape(deal, imported) {
+    const empty = $("tape").querySelector("li.empty");
+    if (empty) empty.remove();
     const li = document.createElement("li");
     li.className = deal.side === "BUY" ? "buy" : "sell";
     const pnl = deal.profit || 0;
@@ -466,6 +503,7 @@
       state.library.push(parsed);
     }
     persist();
+    toast(I18N[state.lang].toastImported + " · " + state.library.length);
     const last = state.library[state.library.length - 1];
     if (last && last.stats.symbol && AetherionLab.UNIVERSE.some((s) => s.symbol === last.stats.symbol)) {
       $("symbol").value = last.stats.symbol;
@@ -480,12 +518,35 @@
     $("playBtn").onclick = () => { state.playing = !state.playing; applyLang(); };
     $("stepBtn").onclick = () => { engine.step(); render(); };
     $("resetBtn").onclick = () => bootEngine();
-    $("assetFilter").onchange = () => { fillSelect(); bootEngine(); };
-    $("symbol").onchange = () => { bootEngine(); persist(); };
+    $("assetFilter").onchange = () => { fillSelect(); maybeAutoPreset(); bootEngine(); persist(); };
+    $("symbol").onchange = () => { maybeAutoPreset(); bootEngine(); persist(); };
     $("tf").onchange = () => { bootEngine(); persist(); };
     $("strategy").onchange = () => { bootEngine(); persist(); };
     $("preset").onchange = () => { bootEngine(); persist(); };
-    $("speed").oninput = (e) => (state.speed = +e.target.value);
+    $("speed").oninput = () => syncSpeed();
+    if ($("clearLabBtn")) $("clearLabBtn").onclick = () => {
+      state.library = [];
+      persist();
+      paintLab();
+      bootEngine();
+      toast(I18N[state.lang].toastCleared);
+    };
+    window.addEventListener("keydown", (e) => {
+      if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        state.playing = !state.playing;
+        applyLang();
+      } else if (e.code === "ArrowRight") {
+        e.preventDefault();
+        engine.step();
+        render();
+      } else if (e.code === "ArrowLeft") {
+        e.preventDefault();
+        if (state.playing) { state.playing = false; applyLang(); }
+        else if (engine.idx > 210) { engine.idx -= 1; render(); }
+      }
+    });
     $("csvBtn").onclick = exportCSV;
     $("pngBtn").onclick = exportPNG;
     $("cmpBtn").onclick = runCompare;
@@ -494,6 +555,7 @@
     $("saveWsBtn").onclick = () => {
       const ws = persist();
       download(new Blob([JSON.stringify(ws, null, 2)], { type: "application/json" }), (ws.name || "aetherion-workspace").replace(/\s+/g, "_") + ".json");
+      toast(I18N[state.lang].toastSaved);
     };
     $("loadWsBtn").onclick = () => $("wsFile").click();
     $("wsFile").onchange = async (e) => {
@@ -525,6 +587,7 @@
     if (saved && saved.library && saved.library.length) applyWorkspace(saved);
     else {
       fillSelect();
+      maybeAutoPreset();
       bootEngine();
       setLabVisible(false);
     }

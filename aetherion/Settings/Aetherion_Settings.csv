@@ -8,6 +8,7 @@ AUTO,InpForceTF,enum,0,0,0,0,0,0,0,0,0,0,0,N,إجبار إطار — PERIOD_CURR
 STRATEGY,InpStrategy,enum,0,1,0,3,0,1,1,4,0,4,1,Y,0 تلقائي 1 اتجاه 2 نطاق 3 اختراق 4 سكالب,0 Auto 1 Trend 2 Range 3 Breakout 4 Scalp
 STRATEGY,InpSignalOnNewBar,bool,1,1,1,0,1,1,1,0,0,1,1,N,إشارة على إغلاق الشمعة فقط (بدون إعادة رسم),Signal on closed bar only (no repaint)
 STRATEGY,InpConfirmBars,int,1,2,1,0,1,1,1,0,0,5,1,Y,شموع تأكيد إضافية,Extra confirmation bars
+STRATEGY,InpUseHTF,bool,1,1,1,0,1,1,1,0,0,1,1,N,فلتر الاتجاه على إطار أعلى,Higher-timeframe EMA trend filter
 STRATEGY,InpAllowBuy,bool,1,1,1,1,1,1,1,1,0,1,1,N,السماح بالشراء,Allow BUY
 STRATEGY,InpAllowSell,bool,1,1,1,1,1,1,1,1,0,1,1,N,السماح بالبيع,Allow SELL
 STRATEGY,InpCloseOnOpposite,bool,1,1,1,1,1,1,1,1,0,1,1,N,إغلاق الصفقة عند الإشارة المعاكسة,Close on opposite signal
@@ -52,12 +53,16 @@ RISK,InpMaxPositions,int,1,1,1,3,1,1,1,2,1,20,1,Y,أقصى عدد صفقات م�
 RISK,InpMaxPerSymbol,int,1,1,1,2,1,1,1,1,1,10,1,N,أقصى صفقات لنفس الرمز,Max positions per symbol
 RISK,InpMaxTradesDay,int,8,4,8,16,6,8,6,20,1,80,1,Y,أقصى صفقات في اليوم,Max trades per day
 RISK,InpCooldownBars,int,2,4,2,1,3,2,3,1,0,20,1,Y,شموع انتظار بين الدخول,Cooldown bars between entries
+RISK,InpLossStreakMax,int,3,2,3,0,3,3,3,4,0,10,1,Y,إيقاف بعد N خسائر متتالية,Pause after N consecutive losses
+RISK,InpLossStreakBars,int,6,8,6,6,6,6,8,4,1,30,1,Y,طول الإيقاف بالشموع,Pause length in bars
 RISK,InpMaxDailyLossPct,double,3.0,1.5,3.0,5.0,2.5,3.0,2.5,2.0,0.5,15,0.5,Y,إيقاف يومي عند خسارة %,Daily loss halt %
 RISK,InpMaxDrawdownPct,double,12.0,8.0,12.0,18.0,10.0,12.0,10.0,10.0,3,40,1,Y,إيقاف عند ذروة هبوط %,Max equity drawdown %
 RISK,InpEmergencyClose,bool,1,1,1,1,1,1,1,1,0,1,1,N,إغلاق كل الصفقات عند خرق الحد,Flatten all on risk breach
 SPREAD,InpAutoSpread,bool,1,1,1,1,1,1,1,1,0,1,1,N,سقف سبريد تلقائي حسب فئة الأصل,Auto spread cap by asset class
 SPREAD,InpMaxSpreadPoints,int,35,25,35,60,250,30,80,40,0,2000,5,Y,أقصى سبريد يدوي بالنقاط,Manual max spread in points
 SPREAD,InpSpreadATRMax,double,0.35,0.25,0.35,0.5,0.4,0.3,0.3,0.45,0.05,1.5,0.05,Y,حظر إذا السبريد > ATR ×,Block if spread > ATR ×
+SPREAD,InpSpreadStableBars,int,1,2,1,0,1,1,2,1,0,5,1,Y,السبريد يجب أن يبقى صالحاً N شموع,Spread must stay OK for N bars
+SPREAD,InpRolloverPause,bool,1,1,1,0,0,1,1,1,0,1,1,N,إيقاف 23:50–00:20 (ليس للكريبتو),Block 23:50–00:20 server (not crypto)
 SPREAD,InpSlippage,int,20,10,20,40,40,15,25,30,1,200,1,N,أقصى انحراف سعر,Max price deviation (points)
 SPREAD,InpRetryRequote,bool,1,1,1,1,1,1,1,1,0,1,1,N,إعادة المحاولة عند تغير السعر,Retry on requote / price change
 SPREAD,InpMaxRetries,int,3,2,3,4,4,3,3,3,1,8,1,N,عدد محاولات الإرسال,Max send retries

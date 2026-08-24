@@ -4,26 +4,28 @@
 
   const ASSET_KEYS = {
     USDT: ["USDT", "USDC", "BUSD"],
-    CRYPTO: ["BTC", "ETH", "XRP", "SOL", "BNB", "ADA", "DOGE", "LTC", "DOT", "AVAX", "LINK", "TON", "TRX", "NEAR", "APT", "SUI", "SHIB", "PEPE", "ATOM", "UNI", "ARB", "OP", "FIL", "INJ"],
+    CRYPTO: ["BTC", "ETH", "XRP", "SOL", "BNB", "ADA", "DOGE", "LTC", "DOT", "AVAX", "LINK", "MATIC", "TON", "TRX", "NEAR", "APT", "SUI", "SHIB", "PEPE", "ATOM", "UNI", "ARB", "OP", "FIL", "INJ", "MKR"],
     METAL: ["XAU", "XAG", "XPT", "XPD", "GOLD", "SILVER"],
     ENERGY: ["WTI", "BRENT", "UKOIL", "USOIL", "XTI", "XBR", "NATGAS", "NGAS"],
     INDEX: ["US30", "US500", "US100", "NAS100", "NASDAQ", "SPX", "SP500", "GER40", "GER30", "DAX", "UK100", "JP225", "USTEC", "NDX", "DJ30", "DE40", "FRA40", "HK50"],
   };
 
   const PRESETS = {
-    balanced: { risk: 0.75, atrSL: 1.8, rr: 1.6, adxMin: 18, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true },
-    conservative: { risk: 0.4, atrSL: 2.4, rr: 2.0, adxMin: 22, rsiBuy: [45, 65], rsiSell: [35, 55], newBar: true },
-    aggressive: { risk: 1.5, atrSL: 1.4, rr: 1.2, adxMin: 14, rsiBuy: [40, 72], rsiSell: [28, 60], newBar: false },
-    crypto: { risk: 0.5, atrSL: 2.4, rr: 1.8, adxMin: 16, rsiBuy: [40, 70], rsiSell: [30, 60], newBar: true },
-    forex: { risk: 0.75, atrSL: 1.8, rr: 1.6, adxMin: 18, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true },
-    gold: { risk: 0.6, atrSL: 2.2, rr: 1.8, adxMin: 20, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true },
-    scalp: { risk: 0.35, atrSL: 1.2, rr: 1.1, adxMin: 12, rsiBuy: [38, 75], rsiSell: [25, 62], newBar: false },
+    balanced: { risk: 0.75, atrSL: 1.8, rr: 1.6, adxMin: 18, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 6, spreadStableBars: 1, rolloverPause: true },
+    conservative: { risk: 0.4, atrSL: 2.4, rr: 2.0, adxMin: 22, rsiBuy: [45, 65], rsiSell: [35, 55], newBar: true, confirmBars: 2, useHTF: true, lossStreakMax: 2, lossStreakBars: 8, spreadStableBars: 2, rolloverPause: true },
+    aggressive: { risk: 1.5, atrSL: 1.4, rr: 1.2, adxMin: 14, rsiBuy: [40, 72], rsiSell: [28, 60], newBar: false, confirmBars: 0, useHTF: false, lossStreakMax: 0, lossStreakBars: 6, spreadStableBars: 0, rolloverPause: false },
+    crypto: { risk: 0.5, atrSL: 2.4, rr: 1.8, adxMin: 16, rsiBuy: [40, 70], rsiSell: [30, 60], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 6, spreadStableBars: 1, rolloverPause: false },
+    forex: { risk: 0.75, atrSL: 1.8, rr: 1.6, adxMin: 18, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 6, spreadStableBars: 1, rolloverPause: true },
+    gold: { risk: 0.6, atrSL: 2.2, rr: 1.8, adxMin: 20, rsiBuy: [42, 68], rsiSell: [32, 58], newBar: true, confirmBars: 1, useHTF: true, lossStreakMax: 3, lossStreakBars: 8, spreadStableBars: 2, rolloverPause: true },
+    scalp: { risk: 0.35, atrSL: 1.2, rr: 1.1, adxMin: 12, rsiBuy: [38, 75], rsiSell: [25, 62], newBar: false, confirmBars: 0, useHTF: false, lossStreakMax: 4, lossStreakBars: 4, spreadStableBars: 1, rolloverPause: true },
   };
 
   const TF_MIN = { M1: 1, M5: 5, M15: 15, M30: 30, H1: 60, H4: 240, D1: 1440, W1: 10080 };
 
   function detectAsset(sym) {
-    const u = String(sym || "").toUpperCase().replace(/[.\-_]/g, "");
+    let u = String(sym || "").toUpperCase().replace(/[.\-_]/g, "");
+    u = u.replace(/MICRO|PRO|ECN|RAW/g, "");
+    if (u.length > 3 && /[Mm]$/.test(u)) u = u.slice(0, -1);
     if (ASSET_KEYS.USDT.some((k) => u.includes(k))) return "USDT";
     if (ASSET_KEYS.CRYPTO.some((k) => u.includes(k))) return "CRYPTO";
     if (ASSET_KEYS.METAL.some((k) => u.includes(k))) return "METAL";
@@ -201,6 +203,26 @@
     return upsample(raw, nativeMin, want);
   }
 
+  function higherTF(tf) {
+    return { M1: "M15", M5: "M15", M15: "H1", M30: "H1", H1: "H4", H4: "D1", D1: "W1", W1: "W1" }[tf] || "H4";
+  }
+
+  function parseBarHM(t) {
+    const s = String(t || "");
+    const m = s.match(/T(\d{2}):(\d{2})/) || s.match(/\s(\d{2}):(\d{2})/);
+    if (m) return { h: +m[1], m: +m[2] };
+    const d = new Date(t);
+    if (!Number.isNaN(+d)) return { h: d.getUTCHours(), m: d.getUTCMinutes() };
+    return { h: 12, m: 0 };
+  }
+
+  function presetForAsset(asset) {
+    if (asset === "CRYPTO" || asset === "USDT") return "crypto";
+    if (asset === "METAL") return "gold";
+    if (asset === "FOREX") return "forex";
+    return "balanced";
+  }
+
   function digitsOf(bars) {
     const c = bars[0] ? bars[0].close : 1;
     if (c > 1000) return 2;
@@ -244,6 +266,9 @@
       this.halted = false;
       this.liveSpread = 0;
       this.tick = 0;
+      this.lossStreak = 0;
+      this.streakPauseUntil = -1;
+      this.spreadOkStreak = 0;
       Object.assign(this, fillingFor(this.asset));
     }
 
@@ -263,6 +288,15 @@
       this.digits = digitsOf(bars);
       this.point = pointOf(this.digits);
       this.idx = Math.min(210, bars.length - 2);
+      const fromMin = TF_MIN[this.tf] || 60;
+      const htfName = higherTF(this.tf);
+      const toMin = TF_MIN[htfName] || fromMin * 4;
+      const ratio = Math.max(1, Math.round(toMin / fromMin));
+      const htf = ratio <= 1 ? bars.slice() : resample(bars, fromMin, toMin);
+      const hf = ema(htf.map((b) => b.close), 21);
+      const hs = ema(htf.map((b) => b.close), 55);
+      this.htfFast = bars.map((_, i) => hf[Math.min(hf.length - 1, Math.floor(i / ratio))] || 0);
+      this.htfSlow = bars.map((_, i) => hs[Math.min(hs.length - 1, Math.floor(i / ratio))] || 0);
     }
 
     bar() {
@@ -296,9 +330,17 @@
       const pts = this.point ? spr / this.point : 0;
       const cap = spreadCap(this.asset);
       const spreadOk = pts <= cap && (atrv <= 0 || spr <= atrv * 0.35);
+      const hm = parseBarHM(b.time);
+      const roll = !!(this.cfg.rolloverPause && this.asset !== "CRYPTO" && this.asset !== "USDT" &&
+        ((hm.h === 23 && hm.m >= 50) || (hm.h === 0 && hm.m <= 20)));
+      const streakHold = this.cfg.lossStreakMax > 0 && this.lossStreak >= this.cfg.lossStreakMax && this.idx < this.streakPauseUntil;
+      const spreadWait = this.cfg.spreadStableBars > 0 && this.spreadOkStreak < this.cfg.spreadStableBars;
       let block = "";
       if (this.halted) block = "HALTED";
+      else if (streakHold) block = "STREAK";
       else if (!spreadOk) block = "SPREAD";
+      else if (spreadWait) block = "SPREAD WAIT";
+      else if (roll) block = "ROLLOVER";
       else if (this.pos) block = "IN TRADE";
       return {
         symbol: this.symbol,
@@ -349,8 +391,12 @@
       const high = this.highs[i];
       const low = this.lows[i];
       const open = this.bars[i].open;
-      const bull = this.emaF[i] > this.emaS[i] && close >= this.emaT[i] * 0.999;
-      const bear = this.emaF[i] < this.emaS[i] && close <= this.emaT[i] * 1.001;
+      let bull = this.emaF[i] > this.emaS[i] && close >= this.emaT[i] * 0.999;
+      let bear = this.emaF[i] < this.emaS[i] && close <= this.emaT[i] * 1.001;
+      if (this.cfg.useHTF) {
+        if ((this.htfFast[i] || 0) <= (this.htfSlow[i] || 0)) bull = false;
+        if ((this.htfFast[i] || 0) >= (this.htfSlow[i] || 0)) bear = false;
+      }
       const [b0, b1] = this.cfg.rsiBuy;
       const [s0, s1] = this.cfg.rsiSell;
       const rsiBuy = this.rsi[i] >= b0 && this.rsi[i] <= b1;
@@ -363,23 +409,37 @@
       const diBuy = this.adx.pdi[i] > this.adx.mdi[i];
       const diSell = this.adx.mdi[i] > this.adx.pdi[i];
       const st = this.activeStrat();
+      let sig = 0;
+      let reason = "وضع الخمول";
       if (st === "trend" || st === "scalp") {
         if (!adxOk) return { sig: 0, reason: "ADX ضعيف — السوق بلا اتجاه واضح" };
-        if (bull && rsiBuy && macdBuy && diBuy) return { sig: 1, reason: "تلاقي اتجاه شرائي · EMA+RSI+MACD+DI" };
-        if (bear && rsiSell && macdSell && diSell) return { sig: -1, reason: "تلاقي اتجاه بيعي · EMA+RSI+MACD+DI" };
-        return { sig: 0, reason: "لا تلاقي اتجاهي بعد" };
+        if (bull && rsiBuy && macdBuy && diBuy) { sig = 1; reason = "تلاقي اتجاه شرائي · EMA+RSI+MACD+DI"; }
+        else if (bear && rsiSell && macdSell && diSell) { sig = -1; reason = "تلاقي اتجاه بيعي · EMA+RSI+MACD+DI"; }
+        else return { sig: 0, reason: "لا تلاقي اتجاهي بعد" };
+      } else if (st === "range") {
+        if (low <= this.bb.lo[i] && rsiOs && close > open) { sig = 1; reason = "ارتداد نطاق من الحد السفلي"; }
+        else if (high >= this.bb.up[i] && rsiOb && close < open) { sig = -1; reason = "ارتداد نطاق من الحد العلوي"; }
+        else return { sig: 0, reason: "السعر داخل النطاق" };
+      } else if (st === "break") {
+        if (close > this.bb.up[i] && macdBuy && bull) { sig = 1; reason = "اختراق صاعد لبولينجر"; }
+        else if (close < this.bb.lo[i] && macdSell && bear) { sig = -1; reason = "اختراق هابط لبولينجر"; }
+        else return { sig: 0, reason: "لا اختراق مؤكد" };
+      } else {
+        return { sig: 0, reason };
       }
-      if (st === "range") {
-        if (low <= this.bb.lo[i] && rsiOs && close > open) return { sig: 1, reason: "ارتداد نطاق من الحد السفلي" };
-        if (high >= this.bb.up[i] && rsiOb && close < open) return { sig: -1, reason: "ارتداد نطاق من الحد العلوي" };
-        return { sig: 0, reason: "السعر داخل النطاق" };
+      const need = this.cfg.confirmBars || 0;
+      if (need > 0 && sig) {
+        for (let k = 0; k < need; k++) {
+          const j = i - k;
+          if (j < 0) return { sig: 0, reason: "confirm-no-bar" };
+          const ck = this.closes[j];
+          const ok = this.bars[j].open;
+          if (sig === 1 && ck < ok) return { sig: 0, reason: "confirm bars disagree" };
+          if (sig === -1 && ck > ok) return { sig: 0, reason: "confirm bars disagree" };
+        }
+        reason += " +" + need + " bar confirm";
       }
-      if (st === "break") {
-        if (close > this.bb.up[i] && macdBuy && bull) return { sig: 1, reason: "اختراق صاعد لبولينجر" };
-        if (close < this.bb.lo[i] && macdSell && bear) return { sig: -1, reason: "اختراق هابط لبولينجر" };
-        return { sig: 0, reason: "لا اختراق مؤكد" };
-      }
-      return { sig: 0, reason: "وضع الخمول" };
+      return { sig, reason };
     }
 
     open(sig, reason) {
@@ -417,7 +477,12 @@
       this.balance = this.equity;
       this.peak = Math.max(this.peak, this.equity);
       if (this.equity < this.peak * 0.88) this.halted = true;
-      if (pnl >= 0) { this.wins++; this.gw += pnl; } else { this.losses++; this.gl += pnl; }
+      if (pnl >= 0) { this.wins++; this.gw += pnl; this.lossStreak = 0; }
+      else {
+        this.losses++; this.gl += pnl; this.lossStreak += 1;
+        if (this.cfg.lossStreakMax > 0 && this.lossStreak >= this.cfg.lossStreakMax)
+          this.streakPauseUntil = this.idx + (this.cfg.lossStreakBars || 6);
+      }
       const deal = {
         ...p,
         close: price,
@@ -464,9 +529,19 @@
       this.liveSpread = Math.max(this.point, base * (0.85 + 0.45 * Math.abs(Math.sin(this.tick * 0.17 + this.idx * 0.03))));
       const closed = this.manage();
       let opened = null;
+      const sprNow = this.point ? this.liveSpread / this.point : 0;
+      const atrv = this.atr[this.idx] || 0;
+      const spreadOk = sprNow <= spreadCap(this.asset) && (atrv <= 0 || this.liveSpread <= atrv * 0.35);
+      if (spreadOk) this.spreadOkStreak += 1; else this.spreadOkStreak = 0;
       if (!this.pos && !this.halted) {
         const snap = this.snapshot();
-        if (snap.spreadOk) {
+        if (snap.block && snap.block !== "IN TRADE") {
+          this.lastReason = snap.block === "SPREAD" ? "السبريد أعلى من سقف الأصل"
+            : snap.block === "SPREAD WAIT" ? "انتظار استقرار السبريد"
+            : snap.block === "ROLLOVER" ? "إيقاف الرول أوفر 23:50–00:20"
+            : snap.block === "STREAK" ? "إيقاف بعد سلسلة خسائر"
+            : snap.block;
+        } else if (snap.spreadOk) {
           const s = this.signal();
           this.lastReason = s.reason;
           if (s.sig) opened = this.open(s.sig, s.reason);
@@ -562,6 +637,6 @@
   }
 
   g.Aetherion = {
-    Engine, PRESETS, detectAsset, fillingFor, spreadCap, prepareBars, parseTester, TF_MIN, profile,
+    Engine, PRESETS, detectAsset, fillingFor, spreadCap, prepareBars, parseTester, TF_MIN, profile, higherTF, presetForAsset,
   };
 })(window);

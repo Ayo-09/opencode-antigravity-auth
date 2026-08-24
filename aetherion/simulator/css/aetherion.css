@@ -24,7 +24,7 @@ body{overflow-x:hidden}
 #aurora{position:fixed;inset:0;z-index:0;width:100%;height:100%}
 .noise{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.06;
   background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
-.topbar,.console,.stage,.labs,.compare,.foot{position:relative;z-index:2}
+.topbar,.console,.stage,.labs,.compare,.foot,.gate{position:relative;z-index:2}
 
 .topbar{display:flex;justify-content:space-between;align-items:center;padding:14px 22px 8px;gap:18px}
 .brand{display:flex;align-items:center;gap:14px;min-width:0}
@@ -220,4 +220,15 @@ th{color:var(--muted);font-weight:600}
   .topbar{flex-direction:column;align-items:flex-start}
   .infographic{grid-template-columns:1fr 1fr}
   .mark{width:48px;height:48px}
+}
+
+#tape li.empty{display:block;color:var(--muted);box-shadow:none;grid-template-columns:1fr;font:12px var(--sans)}
+.field span b#speedVal{color:var(--gold);font:600 11px var(--mono);letter-spacing:.04em}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:30;
+  padding:10px 16px;border-radius:999px;background:rgba(8,12,28,.92);color:var(--cyan2);
+  border:1px solid rgba(0,240,255,.35);font:600 13px var(--sans);box-shadow:0 12px 40px rgba(0,0,0,.4);
+  pointer-events:none}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  .pulse,.mark,.orb,.card::before{animation:none!important}
 }

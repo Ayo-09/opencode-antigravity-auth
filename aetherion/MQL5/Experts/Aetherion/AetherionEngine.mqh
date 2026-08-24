@@ -65,6 +65,7 @@ struct AEConfig
    ENUM_AE_STRATEGY  strategy;
    bool              signalOnNewBar;
    int               confirmBars;
+   bool              useHTF;
    bool              allowBuy;
    bool              allowSell;
    bool              closeOnOpposite;
@@ -109,12 +110,16 @@ struct AEConfig
    int               maxPerSymbol;
    int               maxTradesDay;
    int               cooldownBars;
+   int               lossStreakMax;
+   int               lossStreakBars;
    double            maxDailyLossPct;
    double            maxDrawdownPct;
    bool              emergencyClose;
    bool              autoSpread;
    int               maxSpreadPoints;
    double            spreadATRMax;
+   int               spreadStableBars;
+   bool              rolloverPause;
    int               slippage;
    bool              retryRequote;
    int               maxRetries;
@@ -237,6 +242,8 @@ private:
    int               m_hAdx;
    int               m_hBb;
    int               m_hAtr;
+   int               m_hHtfF;
+   int               m_hHtfS;
 
    datetime          m_lastBarTime;
    datetime          m_lastEntryBar;
@@ -251,6 +258,11 @@ private:
    double            m_netProfit;
    bool              m_halted;
    ulong             m_partialDone[];
+   int               m_lossStreak;
+   datetime          m_streakPauseBar;
+   int               m_spreadOkStreak;
+   double            m_htfFast;
+   double            m_htfSlow;
 
    ENUM_ORDER_TYPE_FILLING m_filling;
 
@@ -269,8 +281,10 @@ private:
    void              DetectRegime();
    ENUM_AE_SIGNAL    ComputeSignal(string &reason);
    bool              SessionAllows();
+   bool              RolloverBlocked();
    bool              SpreadAllows();
    bool              RiskAllows(string &why);
+   ENUM_TIMEFRAMES   HigherTF(const ENUM_TIMEFRAMES tf);
    bool              NewBar();
    bool              GapBar();
    int               CountMagic();
@@ -318,6 +332,11 @@ public:
 CAetherionEngine::CAetherionEngine(void)
   {
    m_hEmaF=m_hEmaS=m_hEmaT=m_hRsi=m_hMacd=m_hAdx=m_hBb=m_hAtr=INVALID_HANDLE;
+   m_hHtfF=m_hHtfS=INVALID_HANDLE;
+   m_lossStreak=0;
+   m_streakPauseBar=0;
+   m_spreadOkStreak=0;
+   m_htfFast=m_htfSlow=0;
    m_lastBarTime=0;
    m_lastEntryBar=0;
    m_dayStamp=0;
@@ -461,11 +480,18 @@ ENUM_AE_ASSET CAetherionEngine::DetectAsset(const string sym)
    StringReplace(raw,".","");
    StringReplace(raw,"-","");
    StringReplace(raw,"_","");
-   StringReplace(raw,"M","");
+   // strip broker suffixes only — never delete every 'M' (that breaks AMZN / MSFT / MATIC)
+   StringReplace(raw,"MICRO","");
    StringReplace(raw,"PRO","");
    StringReplace(raw,"ECN","");
    StringReplace(raw,"RAW","");
-   StringReplace(raw,"MICRO","");
+   int nlen=StringLen(raw);
+   if(nlen>3)
+     {
+      ushort last=StringGetCharacter(raw,nlen-1);
+      if(last=='M' || last=='m')
+         raw=StringSubstr(raw,0,nlen-1);
+     }
 
    if(StringFind(raw,"USDT")>=0 || StringFind(raw,"USDC")>=0 || StringFind(raw,"BUSD")>=0)
       return(AE_ASSET_USDT);
@@ -601,10 +627,17 @@ bool CAetherionEngine::CreateIndicators()
    m_hAdx  = iADX(m_symbol,m_tf,m_cfg.adxPeriod);
    m_hBb   = iBands(m_symbol,m_tf,m_cfg.bbPeriod,0,m_cfg.bbDev,PRICE_CLOSE);
    m_hAtr  = iATR(m_symbol,m_tf,m_cfg.atrPeriod);
+   if(m_cfg.useHTF)
+     {
+      ENUM_TIMEFRAMES htf=HigherTF(m_tf);
+      m_hHtfF=iMA(m_symbol,htf,m_cfg.emaFast,0,MODE_EMA,PRICE_CLOSE);
+      m_hHtfS=iMA(m_symbol,htf,m_cfg.emaSlow,0,MODE_EMA,PRICE_CLOSE);
+     }
 
    if(m_hEmaF==INVALID_HANDLE || m_hEmaS==INVALID_HANDLE || m_hEmaT==INVALID_HANDLE ||
       m_hRsi==INVALID_HANDLE  || m_hMacd==INVALID_HANDLE || m_hAdx==INVALID_HANDLE  ||
-      m_hBb==INVALID_HANDLE   || m_hAtr==INVALID_HANDLE)
+      m_hBb==INVALID_HANDLE   || m_hAtr==INVALID_HANDLE ||
+      (m_cfg.useHTF && (m_hHtfF==INVALID_HANDLE || m_hHtfS==INVALID_HANDLE)))
      {
       m_err="Indicator handle failed (symbol/TF not ready)";
       return(false);
@@ -622,6 +655,8 @@ void CAetherionEngine::ReleaseIndicators()
    if(m_hAdx !=INVALID_HANDLE) { IndicatorRelease(m_hAdx);  m_hAdx =INVALID_HANDLE; }
    if(m_hBb  !=INVALID_HANDLE) { IndicatorRelease(m_hBb);   m_hBb  =INVALID_HANDLE; }
    if(m_hAtr !=INVALID_HANDLE) { IndicatorRelease(m_hAtr);  m_hAtr =INVALID_HANDLE; }
+   if(m_hHtfF!=INVALID_HANDLE) { IndicatorRelease(m_hHtfF); m_hHtfF=INVALID_HANDLE; }
+   if(m_hHtfS!=INVALID_HANDLE) { IndicatorRelease(m_hHtfS); m_hHtfS=INVALID_HANDLE; }
   }
 
 bool CAetherionEngine::Copy1(const int handle,const int buf,double &out,const int shift)
@@ -649,6 +684,11 @@ bool CAetherionEngine::UpdateIndicators()
    if(!Copy1(m_hBb,0,m_snap.bbMid))   return(false);
    if(!Copy1(m_hBb,2,m_snap.bbLower)) return(false);
    if(!Copy1(m_hAtr,0,m_snap.atr))    return(false);
+   if(m_cfg.useHTF)
+     {
+      if(!Copy1(m_hHtfF,0,m_htfFast)) return(false);
+      if(!Copy1(m_hHtfS,0,m_htfSlow)) return(false);
+     }
    return(true);
   }
 
@@ -695,7 +735,7 @@ void CAetherionEngine::RefreshQuotes()
    m_snap.riskOk=RiskAllows(why);
    if(!m_snap.riskOk) m_snap.blockReason=why;
    else if(!m_snap.spreadOk) m_snap.blockReason="SPREAD";
-   else if(!m_snap.sessionOk) m_snap.blockReason="SESSION";
+   else if(!m_snap.sessionOk) m_snap.blockReason=RolloverBlocked()?"ROLLOVER":"SESSION";
    else if(!m_snap.tradeAllowed) m_snap.blockReason="ALGO OFF";
    else m_snap.blockReason="";
   }
@@ -801,41 +841,59 @@ ENUM_AE_SIGNAL CAetherionEngine::ComputeSignal(string &reason)
    bool closeAboveBB=(!m_cfg.useBB) || (close1>m_snap.bbUpper);
    bool closeBelowBB=(!m_cfg.useBB) || (close1<m_snap.bbLower);
 
+   if(m_cfg.useHTF)
+     {
+      if(m_htfFast<=m_htfSlow) bullTrend=false;
+      if(m_htfFast>=m_htfSlow) bearTrend=false;
+     }
+
    ENUM_AE_STRATEGY st=m_snap.activeStrat;
+   ENUM_AE_SIGNAL sig=AE_SIG_NONE;
 
    if(st==AE_STRAT_TREND || st==AE_STRAT_SCALP)
      {
       if(m_cfg.useADX && !adxOk) { reason="ADX weak"; return(AE_SIG_NONE); }
       if(bullTrend && rsiBuy && macdBuy && diBuy)
-        { reason="TREND confluence BUY"; return(AE_SIG_BUY); }
-      if(bearTrend && rsiSell && macdSell && diSell)
-        { reason="TREND confluence SELL"; return(AE_SIG_SELL); }
-      reason="no-trend-confluence";
-      return(AE_SIG_NONE);
+        { reason="TREND confluence BUY"; sig=AE_SIG_BUY; }
+      else if(bearTrend && rsiSell && macdSell && diSell)
+        { reason="TREND confluence SELL"; sig=AE_SIG_SELL; }
+      else { reason="no-trend-confluence"; return(AE_SIG_NONE); }
      }
-
-   if(st==AE_STRAT_RANGE)
+   else if(st==AE_STRAT_RANGE)
      {
       if(touchLow && rsiOs && close1>open1)
-        { reason="RANGE bounce BUY"; return(AE_SIG_BUY); }
-      if(touchHigh && rsiOb && close1<open1)
-        { reason="RANGE fade SELL"; return(AE_SIG_SELL); }
-      reason="no-range-edge";
-      return(AE_SIG_NONE);
+        { reason="RANGE bounce BUY"; sig=AE_SIG_BUY; }
+      else if(touchHigh && rsiOb && close1<open1)
+        { reason="RANGE fade SELL"; sig=AE_SIG_SELL; }
+      else { reason="no-range-edge"; return(AE_SIG_NONE); }
      }
-
-   if(st==AE_STRAT_BREAKOUT)
+   else if(st==AE_STRAT_BREAKOUT)
      {
       if(closeAboveBB && macdBuy && bullTrend)
-        { reason="BREAKOUT BUY"; return(AE_SIG_BUY); }
-      if(closeBelowBB && macdSell && bearTrend)
-        { reason="BREAKOUT SELL"; return(AE_SIG_SELL); }
-      reason="no-breakout";
+        { reason="BREAKOUT BUY"; sig=AE_SIG_BUY; }
+      else if(closeBelowBB && macdSell && bearTrend)
+        { reason="BREAKOUT SELL"; sig=AE_SIG_SELL; }
+      else { reason="no-breakout"; return(AE_SIG_NONE); }
+     }
+   else
+     {
+      reason="idle";
       return(AE_SIG_NONE);
      }
 
-   reason="idle";
-   return(AE_SIG_NONE);
+   if(m_cfg.confirmBars>0 && sig!=AE_SIG_NONE)
+     {
+      for(int k=1;k<=m_cfg.confirmBars;k++)
+        {
+         double ck=iClose(m_symbol,m_tf,k);
+         double ok=iOpen(m_symbol,m_tf,k);
+         if(ck<=0) { reason="confirm-no-bar"; return(AE_SIG_NONE); }
+         if(sig==AE_SIG_BUY  && ck<ok) { reason="confirm bars disagree"; return(AE_SIG_NONE); }
+         if(sig==AE_SIG_SELL && ck>ok) { reason="confirm bars disagree"; return(AE_SIG_NONE); }
+        }
+      reason=reason+" +"+IntegerToString(m_cfg.confirmBars)+" bar confirm";
+     }
+   return(sig);
   }
 
 //+------------------------------------------------------------------+
@@ -849,6 +907,9 @@ bool CAetherionEngine::SessionAllows()
    // Crypto / USDT: 24/7 (some brokers still close weekends — respect trade mode)
    long tradeMode=(long)SymbolInfoInteger(m_symbol,SYMBOL_TRADE_MODE);
    if(tradeMode==SYMBOL_TRADE_MODE_CLOSEONLY || tradeMode==SYMBOL_TRADE_MODE_DISABLED)
+      return(false);
+
+   if(RolloverBlocked())
       return(false);
 
    if(a==AE_ASSET_CRYPTO || a==AE_ASSET_USDT)
@@ -887,6 +948,28 @@ bool CAetherionEngine::SessionAllows()
    if(m_cfg.tradeLondon && inLon) ok=true;
    if(m_cfg.tradeNY && inNY) ok=true;
    return(ok);
+  }
+
+bool CAetherionEngine::RolloverBlocked()
+  {
+   if(!m_cfg.rolloverPause) return(false);
+   if(m_snap.asset==AE_ASSET_CRYPTO || m_snap.asset==AE_ASSET_USDT)
+      return(false);
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(),dt);
+   if(dt.hour==23 && dt.min>=50) return(true);
+   if(dt.hour==0  && dt.min<=20) return(true);
+   return(false);
+  }
+
+ENUM_TIMEFRAMES CAetherionEngine::HigherTF(const ENUM_TIMEFRAMES tf)
+  {
+   if(tf<=PERIOD_M5)  return(PERIOD_M15);
+   if(tf<=PERIOD_M15) return(PERIOD_H1);
+   if(tf<=PERIOD_M30) return(PERIOD_H1);
+   if(tf<=PERIOD_H1)  return(PERIOD_H4);
+   if(tf<=PERIOD_H4)  return(PERIOD_D1);
+   return(PERIOD_W1);
   }
 
 bool CAetherionEngine::SpreadAllows()
@@ -934,6 +1017,12 @@ bool CAetherionEngine::RiskAllows(string &why)
       int shift=iBarShift(m_symbol,m_tf,m_lastEntryBar,false);
       if(shift>=0 && shift<m_cfg.cooldownBars)
         { why="COOLDOWN"; return(false); }
+     }
+   if(m_cfg.lossStreakMax>0 && m_lossStreak>=m_cfg.lossStreakMax && m_streakPauseBar>0)
+     {
+      int sh=iBarShift(m_symbol,m_tf,m_streakPauseBar,false);
+      if(sh>=0 && sh<m_cfg.lossStreakBars)
+        { why="STREAK"; return(false); }
      }
    return(true);
   }
@@ -1408,10 +1497,15 @@ void CAetherionEngine::OnTick()
    if(!go) return;
    if(GapBar()) { m_snap.blockReason="GAP"; return; }
 
+   if(SpreadAllows()) m_spreadOkStreak++;
+   else               m_spreadOkStreak=0;
+
    string why;
    if(!RiskAllows(why)) { m_snap.blockReason=why; return; }
    if(!SpreadAllows())  { m_snap.blockReason="SPREAD"; return; }
-   if(!SessionAllows()) { m_snap.blockReason="SESSION"; return; }
+   if(m_cfg.spreadStableBars>0 && m_spreadOkStreak<m_cfg.spreadStableBars)
+     { m_snap.blockReason="SPREAD WAIT"; return; }
+   if(!SessionAllows()) { m_snap.blockReason=RolloverBlocked()?"ROLLOVER":"SESSION"; return; }
    if(!m_snap.tradeAllowed) { m_snap.blockReason="ALGO OFF"; return; }
 
    string reason;
@@ -1444,8 +1538,20 @@ void CAetherionEngine::OnTradeTransaction(const MqlTradeTransaction &trans,
                 +HistoryDealGetDouble(deal,DEAL_SWAP)
                 +HistoryDealGetDouble(deal,DEAL_COMMISSION);
    m_netProfit+=profit;
-   if(profit>=0) { m_wins++; m_grossWin+=profit; }
-   else          { m_losses++; m_grossLoss+=profit; }
+   if(profit>=0)
+     {
+      m_wins++;
+      m_grossWin+=profit;
+      m_lossStreak=0;
+     }
+   else
+     {
+      m_losses++;
+      m_grossLoss+=profit;
+      m_lossStreak++;
+      if(m_cfg.lossStreakMax>0 && m_lossStreak>=m_cfg.lossStreakMax)
+         m_streakPauseBar=iTime(m_symbol,m_tf,0);
+     }
   }
 
 double CAetherionEngine::TesterScore()

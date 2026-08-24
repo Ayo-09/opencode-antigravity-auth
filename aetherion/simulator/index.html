@@ -77,7 +77,7 @@
         </select>
       </label>
       <label class="field grow">
-        <span data-i18n="speed">السرعة</span>
+        <span data-i18n="speed">السرعة <b id="speedVal">3.2×</b></span>
         <input id="speed" type="range" min="0.4" max="18" step="0.2" value="3.2" />
       </label>
       <div class="actions">
@@ -104,6 +104,7 @@
         <select id="wsSlot" class="slot"></select>
         <button id="csvBtn" class="ghost" type="button">CSV</button>
         <button id="pngBtn" class="ghost" type="button">PNG</button>
+        <button id="clearLabBtn" class="ghost" type="button" data-i18n="clearLab">مسح التقارير</button>
         <button id="cmpBtn" class="primary slim" type="button" data-i18n="compare">مقارنة التقارير المستوردة</button>
       </div>
     </div>
@@ -191,7 +192,7 @@
           <span data-i18n="tape">شريط الصفقات الحية</span>
           <b id="net">+0.00</b>
         </header>
-        <ol id="tape"></ol>
+        <ol id="tape"><li class="empty" data-i18n="tapeEmpty">لا صفقات بعد — Space للتشغيل/الإيقاف</li></ol>
       </div>
     </section>
   </main>
@@ -261,12 +262,14 @@
   <footer class="foot">
     <img src="assets/icon-mark.png" alt="" />
     <p>
-      AETHERION v1.0.0 · ليست نصيحة استثمارية · اختبر على حساب تجريبي أولاً ·
-      السبريد الحي والملء التلقائي FOK/IOC/RETURN مفعّلان لتفادي أخطاء MT5 10016 / 10030
+      AETHERION v1.1.0 · ليست نصيحة استثمارية · اختبر على حساب تجريبي أولاً ·
+      رول أوفر + سلسلة خسائر + إطار أعلى مفعّلة · Space تشغيل · ←→ شمعة
     </p>
   </footer>
 
+  <div id="toast" class="toast" hidden></div>
   <script src="js/engine.js"></script>
+  <script src="js/lab.js"></script>
   <script src="js/chart.js"></script>
   <script src="js/app.js"></script>
 </body>

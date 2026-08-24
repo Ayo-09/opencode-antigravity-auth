@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                                    Aetherion.mq5 |
-//|                     AETHERION Adaptive Intelligence EA v1.0.0    |
+//|                     AETHERION Adaptive Intelligence EA v1.1.0    |
 //|          Multi-asset · Auto symbol/TF · MT5 Build 4000+ safe     |
 //+------------------------------------------------------------------+
 #property copyright   "AETHERION Adaptive Intelligence"
 #property link        "https://aetherion.local"
-#property version     "1.00"
+#property version     "1.10"
 #property description "AETHERION — Adaptive multi-asset Expert Advisor"
 #property description "Auto-detects symbol, timeframe and asset class."
 #property description "Forex · Crypto/USDT · Metals · Energy · Indices · Stocks"
@@ -39,7 +39,8 @@ input ENUM_TIMEFRAMES      InpForceTF            = PERIOD_CURRENT;   // Force ti
 input group "===== STRATEGY CORE ====="
 input ENUM_AE_STRATEGY     InpStrategy           = AE_STRAT_AUTO;    // Strategy mode
 input bool                 InpSignalOnNewBar     = true;             // Signal on new bar only
-input int                  InpConfirmBars        = 1;                // Extra confirmation bars
+input int                  InpConfirmBars        = 1;                // Extra same-color confirmation bars
+input bool                 InpUseHTF             = true;             // Higher-TF trend filter
 input bool                 InpAllowBuy           = true;             // Allow BUY
 input bool                 InpAllowSell          = true;             // Allow SELL
 input bool                 InpCloseOnOpposite    = true;             // Close on opposite signal
@@ -98,6 +99,8 @@ input int                  InpMaxPositions       = 1;                // Max open
 input int                  InpMaxPerSymbol       = 1;                // Max per symbol
 input int                  InpMaxTradesDay       = 8;                // Max trades / day
 input int                  InpCooldownBars       = 2;                // Bars between entries
+input int                  InpLossStreakMax      = 3;                // Pause after N losses (0=off)
+input int                  InpLossStreakBars     = 6;                // Pause length in bars
 input double               InpMaxDailyLossPct    = 3.0;              // Daily loss stop %
 input double               InpMaxDrawdownPct     = 12.0;             // Equity DD stop %
 input bool                 InpEmergencyClose     = true;             // Flatten on DD breach
@@ -106,6 +109,8 @@ input group "===== SPREAD / EXECUTION ====="
 input bool                 InpAutoSpread         = true;             // Auto spread ceiling by asset
 input int                  InpMaxSpreadPoints    = 35;               // Manual max spread (points)
 input double               InpSpreadATRMax       = 0.35;             // Block if spread > ATR×
+input int                  InpSpreadStableBars   = 1;                // Spread must stay OK N bars
+input bool                 InpRolloverPause      = true;             // Block 23:50–00:20 server
 input int                  InpSlippage           = 20;               // Max deviation (points)
 input bool                 InpRetryRequote       = true;             // Retry on requote
 input int                  InpMaxRetries         = 3;                // Max send retries
@@ -172,6 +177,7 @@ int OnInit()
    cfg.strategy           = InpStrategy;
    cfg.signalOnNewBar     = InpSignalOnNewBar;
    cfg.confirmBars        = MathMax(InpConfirmBars,0);
+   cfg.useHTF             = InpUseHTF;
    cfg.allowBuy           = InpAllowBuy;
    cfg.allowSell          = InpAllowSell;
    cfg.closeOnOpposite    = InpCloseOnOpposite;
@@ -216,12 +222,16 @@ int OnInit()
    cfg.maxPerSymbol       = MathMax(InpMaxPerSymbol,1);
    cfg.maxTradesDay       = InpMaxTradesDay;
    cfg.cooldownBars       = MathMax(InpCooldownBars,0);
+   cfg.lossStreakMax      = MathMax(InpLossStreakMax,0);
+   cfg.lossStreakBars     = MathMax(InpLossStreakBars,1);
    cfg.maxDailyLossPct    = InpMaxDailyLossPct;
    cfg.maxDrawdownPct     = InpMaxDrawdownPct;
    cfg.emergencyClose     = InpEmergencyClose;
    cfg.autoSpread         = InpAutoSpread;
    cfg.maxSpreadPoints    = InpMaxSpreadPoints;
    cfg.spreadATRMax       = InpSpreadATRMax;
+   cfg.spreadStableBars   = MathMax(InpSpreadStableBars,0);
+   cfg.rolloverPause      = InpRolloverPause;
    cfg.slippage           = InpSlippage;
    cfg.retryRequote       = InpRetryRequote;
    cfg.maxRetries         = MathMax(InpMaxRetries,1);

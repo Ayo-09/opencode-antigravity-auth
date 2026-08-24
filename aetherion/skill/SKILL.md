@@ -38,16 +38,19 @@ On init:
 
 - Resolve symbol/TF (`force` override only if non-empty).
 - `SymbolSelect`, abort if `SYMBOL_TRADE_MODE_DISABLED`.
-- Detect asset: `USDT` substring → USDT 24/7; crypto token list; metals; energy; indices; else calc-mode / 6-letter FX.
+- Detect asset: `USDT` substring → USDT 24/7; crypto token list; metals; energy; indices; else calc-mode / 6-letter FX. Strip only trailing micro `M` / MICRO / PRO / ECN / RAW — never `StringReplace` every `M` (breaks AMZN / MSFT / MATIC).
 - Detect filling (Instant/Request → IOC|FOK|RETURN; Market → IOC|FOK only; Exchange → IOC|FOK|RETURN).
 - Create indicator handles on **that** symbol/TF; `IndicatorRelease` in deinit.
 - Prefix all objects `AE_<magic>_` and delete only those.
 
 On tick:
 
-- New-bar option (closed bar, no repaint).
+- New-bar option (closed bar, no repaint). Optional `confirmBars` same-color closed bars.
+- Higher-TF EMA filter (`useHTF`) — M5→M15, M15→H1, H1→H4, H4→D1.
 - Session filter **off** for crypto/USDT; Friday cutoff + Monday delay for FX/indices/stocks.
-- Spread gate: auto cap by asset **or** `spread > ATR × k`.
+- Rollover pause 23:50–00:20 server time (not crypto/USDT).
+- Spread gate: auto cap by asset **or** `spread > ATR × k`, plus `spreadStableBars` consecutive OK bars.
+- Pause after `lossStreakMax` losses for `lossStreakBars`.
 - Signal = confluence (trend / range / breakout) chosen by ADX regime when strategy = Auto.
 - Size lots from risk % / tick value; cap by free margin 60%.
 - Manage BE, ATR trail, partial at R-multiple, time-exit.
