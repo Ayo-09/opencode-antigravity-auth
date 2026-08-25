@@ -14,7 +14,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8787
 
-ATTACH_EXT = {".zip", ".set", ".mq5", ".xlsx", ".csv", ".png", ".txt", ".py", ".json", ".md"}
+ATTACH_EXT = {".zip", ".set", ".mq5", ".xlsx", ".csv", ".png", ".txt", ".py", ".json", ".md", ".bmp", ".wav", ".mp3"}
 
 
 class Handler(SimpleHTTPRequestHandler):
