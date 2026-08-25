@@ -12,8 +12,8 @@
 //+------------------------------------------------------------------+
 #property copyright "NOVA GRAVITY AI - Automated Trading Engine"
 #property link      ""
-#property version   "1.00"
-#property description "NOVA GRAVITY AI | Adaptive Multi-Class EA v1.00"
+#property version   "1.01"
+#property description "NOVA GRAVITY AI | Adaptive Multi-Class EA v1.01"
 #property description "Auto-detects symbol class (FX/Crypto/Gold/Oil/Indices/Stocks/USDT) and timeframe."
 #property description "Protection layer: Friday weekend guard, QUIET/VOLATILE regime filter,"
 #property description "partial close -> breakeven, max hold time stop, gap & spread filters."
@@ -32,6 +32,7 @@ enum ENUM_NG_FRIDAY_ACTION      { NG_FRIDAY_CLOSE_ALL=0, NG_FRIDAY_BREAKEVEN=1,
 enum ENUM_NG_SYMBOL_CLASS       { NG_CLASS_FOREX=0, NG_CLASS_CRYPTO=1, NG_CLASS_GOLD=2,
                                   NG_CLASS_OIL=3, NG_CLASS_INDEX=4, NG_CLASS_STOCK=5,
                                   NG_CLASS_USDT=6, NG_CLASS_OTHER=7 };
+enum ENUM_NG_ROLLOVER_ACTION   { NG_ROLLOVER_BREAKEVEN=0, NG_ROLLOVER_CLOSE=1 };
 
 //====================================================================
 //  INPUTS
@@ -137,6 +138,20 @@ input int      InpMaxHoldIndex        = 24;                  // Max hold bars H1
 input int      InpMaxHoldStock        = 24;                  // Max hold bars H1-equivalent: STOCKS
 input int      InpMaxHoldOther        = 36;                  // Max hold bars H1-equivalent: OTHER
 
+input group "===== 09 | PORTFOLIO SHARING & JOURNAL ====="
+input bool     InpPortfolioSharing      = true;                // Share day/week limits across ALL charts of the EA
+input double   InpWeeklyLossLimitPercent= 6.0;                 // Weekly loss limit % (0=off) - portfolio-wide
+input bool     InpAdaptiveRisk          = true;                // Auto-reduce risk as drawdown grows
+input double   InpRiskReductionStartDD  = 5.0;                 // Drawdown % where risk scaling starts
+input double   InpRiskReductionFloor    = 0.25;                // Minimum risk multiplier (never below this)
+input bool     InpRolloverGuard         = true;                // Guard against negative swap at rollover
+input int      InpRolloverStart         = 21;                  // Rollover start (server hour)
+input int      InpRolloverEnd           = 22;                  // Rollover end (server hour)
+input double   InpRolloverSwapThreshold = -0.5;                // Trigger if position swap < this ($)
+input ENUM_NG_ROLLOVER_ACTION InpRolloverAction = NG_ROLLOVER_BREAKEVEN; // Guard action
+input bool     InpJournalCSV            = true;                // Write NovaGravity_Journal.csv (MQL5/Files)
+input bool     InpNotifyOnGuards        = false;               // Push notification on critical events
+
 //====================================================================
 //  GLOBALS
 //====================================================================
@@ -159,6 +174,15 @@ bool               g_haltedDD=false;
 int                g_alarmCooldownMinute=-1;   // avoid log spam
 double             g_peakEquity=0.0;
 int                g_regimeCache=1;            // cached regime (0=QUIET,1=NORMAL,2=VOLATILE)
+bool               g_pfHalt=false;            // portfolio-wide halt (shared across charts)
+bool               g_pfNewHalt=false;         // set once when portfolio limit triggers
+bool               g_weekHaltLocal=false;     // local weekly halt (tester / no-sharing fallback)
+int                g_weekKey=0;               // week key for offset re-detect (DST)
+bool               g_journalWarned=false;     // avoid log spam
+
+#define NG_GPFX "NovaGravity_"
+#define NG_JOURNAL_FILE "NovaGravity_Journal.csv"
+
 
 // position trackers
 struct NG_Position
@@ -175,6 +199,7 @@ struct NG_Position
    bool    beLocked;
    bool    fridayDone;
    bool    reverseDone;
+   bool    rolloverDone;
 };
 NG_Position g_positions[];
 
@@ -188,6 +213,16 @@ struct NG_Signal
 // forward declarations
 void NgCloseEvery(const string reason);
 bool NgHasGap();
+void NgJournalClosed(const ulong ticket);
+bool NgDealSnapshot(const ulong positionTicket, double &profit, double &commission, double &swap, double &closePrice, datetime &closeTime, double &closedVolume);
+string NgCloseReason(const NG_Position &p, const double closePrice);
+double NgClosedPLBetween(const datetime from, const datetime to);
+int NgClosedCountBetween(const datetime from, const datetime to);
+void NgPortfolioUpdate(bool &halt, bool &newHalt);
+void NgNotify(const string msg);
+datetime NgWeekStart();
+int NgDayKeyInt();
+int NgWeekKeyInt();
 
 //====================================================================
 //  AUXILIARY
@@ -239,6 +274,23 @@ double NgRiskLots(const double slPriceDist)
       riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpRiskPercent / 100.0;
    else
       riskMoney = AccountInfoDouble(ACCOUNT_MARGIN_FREE) * InpMarginRiskPercent / 100.0;
+
+   //--- adaptive risk: scale down as drawdown grows (survival curve, never martingale)
+   if(InpAdaptiveRisk && riskMoney > 0.0)
+   {
+      double eq = AccountInfoDouble(ACCOUNT_EQUITY);
+      if(eq > g_peakEquity) g_peakEquity = eq;
+      if(g_peakEquity <= 0.0) g_peakEquity = eq;
+      double ddPct = (g_peakEquity > 0.0) ? 100.0 * (g_peakEquity - eq) / g_peakEquity : 0.0;
+      if(ddPct > InpRiskReductionStartDD)
+      {
+         double capDD = (InpGlobalDrawdownStopPercent > 0.0) ? InpGlobalDrawdownStopPercent : 20.0;
+         double span  = MathMax(capDD - InpRiskReductionStartDD, 1.0);
+         double mult  = MathMax(InpRiskReductionFloor,
+                                1.0 - (ddPct - InpRiskReductionStartDD) / span);
+         riskMoney *= mult;
+      }
+   }
    if(riskMoney <= 0.0) return NgNormalizeVolume(InpFixedLots);
 
    double perLotRisk = (slPriceDist / tickSize) * tickVal;
@@ -449,6 +501,13 @@ bool NgInNewsBlackout()
    // wrap-safe compare (window may cross midnight only if extended)
    if(sMin <= eMin) return (now >= sMin && now <= eMin);
    return (now >= sMin || now <= eMin);
+}
+
+//---- rollover (swap) window, server time, wrap-safe
+bool NgInRolloverWindow()
+{
+   MqlDateTime dt; NgServerNow(dt);
+   return NgInHourWindow(dt.hour, InpRolloverStart, InpRolloverEnd);
 }
 
 //====================================================================
@@ -817,11 +876,16 @@ void NgTrackerAdd(const ulong ticket, const int dir)
 
 void NgSyncTrackers()
 {
-   // remove trackers of closed positions
+   // remove trackers of closed positions (journal the close first)
    for(int i = ArraySize(g_positions) - 1; i >= 0; i--)
    {
       ulong t = g_positions[i].ticket;
-      if(!PositionSelectByTicket(t)) { ArrayRemove(g_positions, i, 1); continue; }
+      if(!PositionSelectByTicket(t))
+      {
+         NgJournalClosed(t);
+         ArrayRemove(g_positions, i, 1);
+         continue;
+      }
       if(PositionGetInteger(POSITION_MAGIC) != InpMagicNumber) { ArrayRemove(g_positions, i, 1); continue; }
    }
    // add new positions
@@ -937,6 +1001,258 @@ void NgRefreshDay()
       g_haltToday = false;
       g_haltedDD = false;
    }
+   //--- weekly: re-detect server GMT offset (DST changes) + reset weekly halt
+   int wk = NgWeekKeyInt();
+   if(wk != g_weekKey)
+   {
+      g_weekKey = wk;
+      g_weekHaltLocal = false;
+      g_serverGmtOffset = NgDetectServerOffset();
+      NgInfo("Week rollover -> server offset re-detected: " + IntegerToString(g_serverGmtOffset) + "h GMT");
+   }
+}
+
+//====================================================================
+//  PORTFOLIO HELPERS  (terminal-wide; live-only sharing)
+//====================================================================
+datetime NgWeekStart()
+{
+   MqlDateTime dt; NgServerNow(dt);
+   int back = (dt.day_of_week == 0) ? 6 : (dt.day_of_week - 1); // Monday = week start
+   datetime now = TimeTradeServer();
+   datetime midnight = (datetime)(now - (dt.hour * 3600 + dt.min * 60 + dt.sec));
+   return (datetime)(midnight - back * 86400);
+}
+
+int NgDayKeyInt()
+{
+   MqlDateTime dt; NgServerNow(dt);
+   return (dt.year * 100 + dt.mon) * 100 + dt.day;
+}
+
+int NgWeekKeyInt()
+{
+   MqlDateTime dt; TimeToStruct(NgWeekStart(), dt);
+   return (dt.year * 100 + dt.mon) * 100 + dt.day;
+}
+
+double NgClosedPLBetween(const datetime from, const datetime to)
+{
+   if(!HistorySelect(from, to)) return 0.0;
+   double pl = 0.0;
+   for(int i = 0; i < HistoryDealsTotal(); i++)
+   {
+      ulong t = HistoryDealGetTicket(i);
+      if(t == 0) continue;
+      if(HistoryDealGetString(t, DEAL_SYMBOL) != g_symbol) continue;
+      if(HistoryDealGetInteger(t, DEAL_MAGIC) != InpMagicNumber) continue;
+      if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(t, DEAL_ENTRY) != DEAL_ENTRY_OUT) continue;
+      pl += HistoryDealGetDouble(t, DEAL_PROFIT)
+          + HistoryDealGetDouble(t, DEAL_COMMISSION)
+          + HistoryDealGetDouble(t, DEAL_SWAP);
+   }
+   return pl;
+}
+
+int NgClosedCountBetween(const datetime from, const datetime to)
+{
+   if(!HistorySelect(from, to)) return 0;
+   int cnt = 0;
+   for(int i = 0; i < HistoryDealsTotal(); i++)
+   {
+      ulong t = HistoryDealGetTicket(i);
+      if(t == 0) continue;
+      if(HistoryDealGetString(t, DEAL_SYMBOL) != g_symbol) continue;
+      if(HistoryDealGetInteger(t, DEAL_MAGIC) != InpMagicNumber) continue;
+      if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(t, DEAL_ENTRY) == DEAL_ENTRY_IN) cnt++;
+   }
+   return cnt;
+}
+
+//---- share own day/week stats + aggregate ALL instances via terminal global variables
+void NgPortfolioUpdate(bool &halt, bool &newHalt)
+{
+   halt = false; newHalt = false;
+   if(MQLInfoInteger(MQL_TESTER)) return;            // tester: isolated local limits only
+   if(!InpPortfolioSharing) return;
+
+   string mk = IntegerToString(InpMagicNumber);
+   datetime dayFrom = NgDayStart();
+   datetime to      = TimeTradeServer() + 3600;
+   datetime weekFrom = NgWeekStart();
+
+   //--- publish own accumulators (per instance, keyed by magic)
+   GlobalVariableSet(NG_GPFX + "DayKey_"    + mk, NgDayKeyInt());
+   GlobalVariableSet(NG_GPFX + "DayPnl_"    + mk, NgClosedPLBetween(dayFrom, to));
+   GlobalVariableSet(NG_GPFX + "DayTrades_" + mk, NgClosedCountBetween(dayFrom, to));
+   GlobalVariableSet(NG_GPFX + "WeekKey_"   + mk, NgWeekKeyInt());
+   GlobalVariableSet(NG_GPFX + "WeekPnl_"   + mk, NgClosedPLBetween(weekFrom, to));
+
+   //--- aggregate across every instance
+   double dayPnl = 0.0, weekPnl = 0.0;
+   int    dayTrades = 0, weekTrades = 0;
+   int total = GlobalVariablesTotal();
+   for(int i = 0; i < total; i++)
+   {
+      string nm = GlobalVariableName(i);
+      if(StringFind(nm, NG_GPFX + "DayPnl_") == 0)
+      {
+         string mk2 = StringSubstr(nm, StringLen(NG_GPFX) + StringLen("DayPnl_"));
+         if((int)GlobalVariableGet(NG_GPFX + "DayKey_" + mk2) == NgDayKeyInt())
+         {
+            dayPnl += GlobalVariableGet(nm);
+            dayTrades += (int)GlobalVariableGet(NG_GPFX + "DayTrades_" + mk2);
+         }
+      }
+      if(StringFind(nm, NG_GPFX + "WeekPnl_") == 0)
+      {
+         string mk2 = StringSubstr(nm, StringLen(NG_GPFX) + StringLen("WeekPnl_"));
+         if((int)GlobalVariableGet(NG_GPFX + "WeekKey_" + mk2) == NgWeekKeyInt())
+         {
+            weekPnl += GlobalVariableGet(nm);
+         }
+      }
+   }
+
+   double bal = AccountInfoDouble(ACCOUNT_BALANCE);
+   if(bal <= 0.0) return;
+
+   //--- day halt (auto reset on new day)
+   int dayHaltKey = (int)GlobalVariableGet(NG_GPFX + "DayHaltKey");
+   int dayHalt    = (int)GlobalVariableGet(NG_GPFX + "DayHalt");
+   if(dayHaltKey != NgDayKeyInt())
+   {
+      dayHalt = 0;
+      GlobalVariableSet(NG_GPFX + "DayHalt", 0);
+      GlobalVariableSet(NG_GPFX + "DayHaltKey", NgDayKeyInt());
+   }
+   if(dayHalt == 0 && InpDailyLossLimitPercent > 0.0 &&
+      dayPnl <= -bal * InpDailyLossLimitPercent / 100.0)
+   {
+      dayHalt = 1;
+      GlobalVariableSet(NG_GPFX + "DayHalt", 1);
+      GlobalVariableSet(NG_GPFX + "DayHaltKey", NgDayKeyInt());
+      newHalt = true;
+      NgNotify("PORTFOLIO DAILY LIMIT (" + DoubleToString(dayPnl, 2) +
+               " across " + IntegerToString(dayTrades) + " trades) - closing all");
+   }
+
+   //--- week halt (auto reset on new week)
+   int weekHaltKey = (int)GlobalVariableGet(NG_GPFX + "WeekHaltKey");
+   int weekHalt    = (int)GlobalVariableGet(NG_GPFX + "WeekHalt");
+   if(weekHaltKey != NgWeekKeyInt())
+   {
+      weekHalt = 0;
+      GlobalVariableSet(NG_GPFX + "WeekHalt", 0);
+      GlobalVariableSet(NG_GPFX + "WeekHaltKey", NgWeekKeyInt());
+   }
+   if(weekHalt == 0 && InpWeeklyLossLimitPercent > 0.0 &&
+      weekPnl <= -bal * InpWeeklyLossLimitPercent / 100.0)
+   {
+      weekHalt = 1;
+      GlobalVariableSet(NG_GPFX + "WeekHalt", 1);
+      GlobalVariableSet(NG_GPFX + "WeekHaltKey", NgWeekKeyInt());
+      newHalt = true;
+      NgNotify("PORTFOLIO WEEKLY LIMIT (" + DoubleToString(weekPnl, 2) + ") - closing all");
+   }
+
+   halt = (dayHalt == 1 || weekHalt == 1);
+}
+
+//====================================================================
+//  JOURNAL (CSV in MQL5/Files - imports into the dashboard)
+//====================================================================
+void NgNotify(const string msg)
+{
+   if(!InpNotifyOnGuards) return;
+   if(MQLInfoInteger(MQL_TESTER)) return;
+   SendNotification(NgLogTag() + msg);
+}
+
+bool NgDealSnapshot(const ulong positionTicket, double &profit, double &commission,
+                    double &swap, double &closePrice, datetime &closeTime, double &closedVolume)
+{
+   if(!HistorySelectByPosition(positionTicket)) return false;
+   bool found = false;
+   for(int i = 0; i < HistoryDealsTotal(); i++)
+   {
+      ulong d = HistoryDealGetTicket(i);
+      if(d == 0) continue;
+      if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(d, DEAL_ENTRY) != DEAL_ENTRY_OUT) continue;
+      profit     += HistoryDealGetDouble(d, DEAL_PROFIT);
+      commission += HistoryDealGetDouble(d, DEAL_COMMISSION);
+      swap       += HistoryDealGetDouble(d, DEAL_SWAP);
+      closePrice  = HistoryDealGetDouble(d, DEAL_PRICE);
+      closeTime   = (datetime)HistoryDealGetInteger(d, DEAL_TIME);
+      closedVolume+= HistoryDealGetDouble(d, DEAL_VOLUME);
+      found = true;
+   }
+   return found;
+}
+
+string NgCloseReason(const NG_Position &p, const double closePrice)
+{
+   if(p.dir > 0)
+   {
+      if(closePrice <= p.initialSL + _Point) return "SL";
+      if(p.initialTP > 0.0 && closePrice >= p.initialTP - _Point) return "TP";
+   }
+   else
+   {
+      if(closePrice >= p.initialSL - _Point) return "SL";
+      if(p.initialTP > 0.0 && closePrice <= p.initialTP + _Point) return "TP";
+   }
+   if(p.partialDone) return "PARTIAL+CLOSE";
+   if(p.fridayDone)  return "FRIDAY-GUARD";
+   if(p.rolloverDone)return "ROLLOVER-GUARD";
+   return "MANUAL/OTHER";
+}
+
+void NgJournalClosed(const ulong ticket)
+{
+   if(!InpJournalCSV) return;
+   if(MQLInfoInteger(MQL_TESTER)) return;   // tester has its own report
+   int idx = -1;
+   if(!NgTrackerIndex(ticket, idx)) return;
+   NG_Position p = g_positions[idx];
+
+   double profit = 0.0, comm = 0.0, swap = 0.0, closePrice = 0.0, vol = 0.0;
+   datetime closeTime = 0;
+   if(!NgDealSnapshot(ticket, profit, comm, swap, closePrice, closeTime, vol)) return;
+   if(closeTime == 0) closeTime = TimeCurrent();
+   string reason = NgCloseReason(p, closePrice);
+
+   int h = FileOpen(NG_JOURNAL_FILE, FILE_READ | FILE_WRITE | FILE_CSV | FILE_ANSI, ',');
+   if(h == INVALID_HANDLE)
+   {
+      if(!g_journalWarned)
+      {
+         g_journalWarned = true;
+         NgWarn("Cannot open journal file " + NG_JOURNAL_FILE + " (check MQL5/Files permissions)");
+      }
+      return;
+   }
+   if(FileSize(h) == 0)
+      FileWrite(h, "ticket", "symbol", "type", "size", "openTime", "openPrice",
+                   "closeTime", "closePrice", "commission", "swap", "profit", "reason", "magic");
+   FileSeek(h, 0, SEEK_END);
+   FileWrite(h,
+      (string)ticket,
+      g_symbol,
+      (p.dir > 0 ? "buy" : "sell"),
+      DoubleToString(p.initialVolume, NgVolumeDigits()),
+      TimeToString(p.openTime),
+      DoubleToString(p.openPrice, _Digits),
+      TimeToString(closeTime),
+      DoubleToString(closePrice, _Digits),
+      DoubleToString(comm, 2),
+      DoubleToString(swap, 2),
+      DoubleToString(profit, 2),
+      reason,
+      IntegerToString(InpMagicNumber));
+   FileClose(h);
+   NgInfo("JOURNAL: t=" + IntegerToString(ticket) + " " + reason +
+          " pnl=" + DoubleToString(profit, 2));
 }
 
 //====================================================================
@@ -1055,6 +1371,34 @@ void NgManagePositions()
          }
       }
 
+      //--- 1b) rollover/swap guard (negative swap window)
+      if(InpRolloverGuard && !g_positions[i].rolloverDone && NgInRolloverWindow())
+      {
+         double posSwap = PositionGetDouble(POSITION_SWAP);
+         if(posSwap < InpRolloverSwapThreshold)
+         {
+            if(InpRolloverAction == NG_ROLLOVER_CLOSE)
+            {
+               if(NgCloseTicket(t, "ROLLOVER-GUARD (swap " + DoubleToString(posSwap, 2) + ")"))
+               {
+                  g_positions[i].rolloverDone = true;
+                  continue;
+               }
+            }
+            else
+            {
+               double open  = PositionGetDouble(POSITION_PRICE_OPEN);
+               double buf   = atr * InpBreakEvenBufferATR;
+               double beSL  = (dir > 0) ? open + buf : open - buf;
+               if(NgModifySL(t, beSL))
+               {
+                  g_positions[i].rolloverDone = true;
+                  NgInfo("ROLLOVER-GUARD t=" + IntegerToString(t) + " -> breakeven");
+               }
+            }
+         }
+      }
+
       //--- 2) trailing stop (never worse than initial SL)
       if(InpTrailingEnabled)
       {
@@ -1140,7 +1484,7 @@ void NgProtectionLayer()
       }
    }
 
-   //--- daily loss limit
+   //--- daily loss limit (per symbol; portfolio-wide limit handled in NgPortfolioUpdate)
    if(InpDailyLossLimitPercent > 0.0 && !g_haltToday)
    {
       double loss = NgDayClosedPL() + NgFloatingPL();
@@ -1150,6 +1494,21 @@ void NgProtectionLayer()
          NgCloseEvery("DAILY LOSS LIMIT (" + DoubleToString(loss, 2) + ")");
          g_haltToday = true;
          NgWarn("Trading halted for today - daily loss limit reached");
+         NgNotify("DAILY LOSS LIMIT reached (" + DoubleToString(loss, 2) + ")");
+      }
+   }
+
+   //--- weekly loss limit (fallback when portfolio sharing is off or in the tester)
+   if(InpWeeklyLossLimitPercent > 0.0 && !g_weekHaltLocal)
+   {
+      double wLoss = NgClosedPLBetween(NgWeekStart(), TimeTradeServer() + 3600) + NgFloatingPL();
+      double wLimit = balance * InpWeeklyLossLimitPercent / 100.0;
+      if(wLoss <= -wLimit)
+      {
+         NgCloseEvery("WEEKLY LOSS LIMIT (" + DoubleToString(wLoss, 2) + ")");
+         g_weekHaltLocal = true;
+         NgWarn("Trading halted for this week - weekly loss limit reached");
+         NgNotify("WEEKLY LOSS LIMIT reached (" + DoubleToString(wLoss, 2) + ")");
       }
    }
 }
@@ -1204,7 +1563,7 @@ void NgDrawPanel(const int regime, const bool spreadOK, const bool newsBlocked, 
 
    string lines[];
    int n = 0;
-   ArrayResize(lines, 14);
+   ArrayResize(lines, 15);
    lines[n++] = "NOVA GRAVITY AI  |  " + g_className;
    lines[n++] = "Symbol : " + g_symbol + "   TF : " + EnumToString(g_tf);
    lines[n++] = "Server offset : " + IntegerToString(g_serverGmtOffset) + "h GMT";
@@ -1216,9 +1575,10 @@ void NgDrawPanel(const int regime, const bool spreadOK, const bool newsBlocked, 
    lines[n++] = "Spread: " + DoubleToString((ask - bid) / SymbolInfoDouble(g_symbol, SYMBOL_POINT), 1) + " pts  " + (spreadOK ? "[ok]" : "[TOO HIGH]");
    lines[n++] = "Session : " + (sessionOK ? "OPEN" : "CLOSED") + "   News : " + (newsBlocked ? "BLOCKED" : "clear");
    lines[n++] = "Positions : " + IntegerToString(NgCountOpen()) + " / " + IntegerToString(InpMaxOpenPositions);
+   lines[n++] = "Portfolio : " + (g_pfHalt ? "HALTED (shared limit)" : "OK  day/week shared");
    lines[n++] = "Day trades : " + IntegerToString(g_dayTrades) + " / " + (InpMaxDailyTrades > 0 ? IntegerToString(InpMaxDailyTrades) : "inf");
    lines[n++] = "Day P/L : " + DoubleToString(NgDayClosedPL() + NgFloatingPL(), 2);
-   lines[n++] = (g_haltToday ? "HALTED - daily limit" : (g_haltedDD ? "HALTED - DD stop" : "Trading " + (InpAllowNewTrades ? "ENABLED" : "PAUSED")));
+   lines[n++] = (g_haltToday || g_pfHalt ? "HALTED - loss limit" : (g_haltedDD ? "HALTED - DD stop" : "Trading " + (InpAllowNewTrades ? "ENABLED" : "PAUSED")));
 
    // rectangle background
    string bgName = nameBase + "BG";
@@ -1387,6 +1747,12 @@ void OnTick()
    NgFridayGuard();
    NgProtectionLayer();
 
+   //--- portfolio-wide limits (shared across every chart running the EA)
+   bool pfHalt = false, pfNew = false;
+   NgPortfolioUpdate(pfHalt, pfNew);
+   g_pfHalt = pfHalt;
+   if(pfNew) NgCloseEvery("PORTFOLIO LIMIT (day/week shared across charts)");
+
    //--- filters shared by all entries (also drive the status panel)
    bool spreadOK = NgSpreadOK();
    bool newsBlocked = NgInNewsBlackout();
@@ -1395,7 +1761,7 @@ void OnTick()
    NgDrawPanel(g_regimeCache, spreadOK, newsBlocked, sessionOK);
 
    if(!InpAllowNewTrades) return;
-   if(g_haltToday || g_haltedDD) return;
+   if(g_haltToday || g_haltedDD || g_pfHalt) return;
 
    if(!newBar) return;
    if(!weekendOK || !spreadOK || newsBlocked || !sessionOK) return;
@@ -1436,3 +1802,52 @@ void OnTick()
 //+------------------------------------------------------------------+
 //  END  |  NOVA GRAVITY AI v1.00  |  Auto-detect + Protection Layer
 //+------------------------------------------------------------------+
+
+//====================================================================
+//  ONTESTER  - custom optimization criterion: PF * sqrt(N) / maxDD%
+//  (select "Custom criterion" in the Strategy Tester optimizer)
+//====================================================================
+double OnTester()
+{
+   ulong seen[];
+   double grossProfit = 0.0, grossLoss = 0.0;
+   double cur = 0.0, peak = 0.0, ddMax = 0.0;
+   int trades = 0;
+
+   int total = HistoryDealsTotal();
+   for(int i = 0; i < total; i++)
+   {
+      ulong d = HistoryDealGetTicket(i);
+      if(d == 0) continue;
+      if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(d, DEAL_ENTRY) != DEAL_ENTRY_OUT) continue;
+      if(HistoryDealGetInteger(d, DEAL_MAGIC) != InpMagicNumber) continue;
+
+      ulong posID = (ulong)HistoryDealGetInteger(d, DEAL_POSITION_ID);
+      bool dup = false;
+      for(int k = 0; k < ArraySize(seen); k++)
+         if(seen[k] == posID) { dup = true; break; }
+      if(dup) continue;
+      int sz = ArraySize(seen);
+      ArrayResize(seen, sz + 1);
+      seen[sz] = posID;
+
+      double p = HistoryDealGetDouble(d, DEAL_PROFIT)
+               + HistoryDealGetDouble(d, DEAL_COMMISSION)
+               + HistoryDealGetDouble(d, DEAL_SWAP);
+      if(p >= 0.0) grossProfit += p; else grossLoss -= p;
+      cur += p;
+      if(cur > peak) peak = cur;
+      double dd = peak - cur;
+      if(dd > ddMax) ddMax = dd;
+      trades++;
+   }
+
+   double pf = (grossLoss > 0.0) ? grossProfit / grossLoss : ((grossProfit > 0.0) ? 99.0 : 0.0);
+   double base = (peak > 0.0) ? peak : 1.0;
+   double ddPct = 100.0 * ddMax / base;
+   if(ddPct <= 0.0) ddPct = 0.01;
+   double score = pf * MathSqrt((double)trades) / ddPct;
+   NgInfo("OnTester: PF=" + DoubleToString(pf, 2) + " T=" + IntegerToString(trades) +
+          " DD%=" + DoubleToString(ddPct, 2) + " score=" + DoubleToString(score, 2));
+   return score;
+}

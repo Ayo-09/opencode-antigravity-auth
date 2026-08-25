@@ -1,6 +1,6 @@
 ; -----------------------------------------------------------------
 ;  NOVA GRAVITY AI - CONSERVATIVE profile (capital protection)
-;  NOVA GRAVITY AI  |  MetaTrader 5  |  Auto-Multi-Class EA v1.00
+;  NOVA GRAVITY AI  |  MetaTrader 5  |  Auto-Multi-Class EA v1.01
 ;  Generated: 2026-08-25
 ;  Import:  File > Open Data Folder > MQL5/Experts/NovaGravity/
 ;          2) right-click the EA on the chart -> Properties -> Load
@@ -91,3 +91,15 @@ InpMaxHoldOil=28
 InpMaxHoldIndex=24
 InpMaxHoldStock=24
 InpMaxHoldOther=36
+InpPortfolioSharing=true
+InpWeeklyLossLimitPercent=6.0
+InpAdaptiveRisk=true
+InpRiskReductionStartDD=5.0
+InpRiskReductionFloor=0.25
+InpRolloverGuard=true
+InpRolloverStart=21
+InpRolloverEnd=22
+InpRolloverSwapThreshold=-0.5
+InpRolloverAction=0
+InpJournalCSV=true
+InpNotifyOnGuards=false

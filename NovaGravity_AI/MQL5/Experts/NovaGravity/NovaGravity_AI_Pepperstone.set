@@ -1,5 +1,5 @@
 ; -----------------------------------------------------------------
-;  NOVA GRAVITY AI - PRO profile (defaults)
+;  NOVA GRAVITY AI - Pepperstone profile (GMT+3)
 ;  NOVA GRAVITY AI  |  MetaTrader 5  |  Auto-Multi-Class EA v1.01
 ;  Generated: 2026-08-25
 ;  Import:  File > Open Data Folder > MQL5/Experts/NovaGravity/
@@ -14,8 +14,8 @@ InpAutoDetectTimeframe=true
 InpTimeframeOverride=0
 InpAllowNewTrades=true
 InpMaxSpreadPoints=0
-InpMaxSpreadATRFactor=0.20
-InpDeviationPoints=20
+InpMaxSpreadATRFactor=0.12
+InpDeviationPoints=15
 InpShowPanel=true
 InpRiskMode=1
 InpFixedLots=0.01
@@ -51,8 +51,8 @@ InpRegimeLookback=120
 InpQuietATRFactor=0.75
 InpVolatileATRFactor=2.00
 InpTradeVolatileRange=false
-InpServerGmtOffset=999
-InpSessionFilter=false
+InpServerGmtOffset=3
+InpSessionFilter=true
 InpLondonStart=8
 InpLondonEnd=17
 InpNewYorkStart=13

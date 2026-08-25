@@ -1,5 +1,5 @@
 ; -----------------------------------------------------------------
-;  NOVA GRAVITY AI - PRO profile (defaults)
+;  NOVA GRAVITY AI - PROP CHALLENGE profile (daily 4% / weekly 8% / DD stop 10%)
 ;  NOVA GRAVITY AI  |  MetaTrader 5  |  Auto-Multi-Class EA v1.01
 ;  Generated: 2026-08-25
 ;  Import:  File > Open Data Folder > MQL5/Experts/NovaGravity/
@@ -19,13 +19,13 @@ InpDeviationPoints=20
 InpShowPanel=true
 InpRiskMode=1
 InpFixedLots=0.01
-InpRiskPercent=1.0
+InpRiskPercent=0.5
 InpMarginRiskPercent=10.0
 InpMaxLots=10.0
 InpMaxOpenPositions=1
-InpDailyLossLimitPercent=3.0
-InpMaxDailyTrades=8
-InpGlobalDrawdownStopPercent=0.0
+InpDailyLossLimitPercent=4.0
+InpMaxDailyTrades=6
+InpGlobalDrawdownStopPercent=10.0
 InpEntryMode=0
 InpFastEMA=21
 InpSlowEMA=55
@@ -52,7 +52,7 @@ InpQuietATRFactor=0.75
 InpVolatileATRFactor=2.00
 InpTradeVolatileRange=false
 InpServerGmtOffset=999
-InpSessionFilter=false
+InpSessionFilter=true
 InpLondonStart=8
 InpLondonEnd=17
 InpNewYorkStart=13
@@ -92,9 +92,9 @@ InpMaxHoldIndex=24
 InpMaxHoldStock=24
 InpMaxHoldOther=36
 InpPortfolioSharing=true
-InpWeeklyLossLimitPercent=6.0
+InpWeeklyLossLimitPercent=8.0
 InpAdaptiveRisk=true
-InpRiskReductionStartDD=5.0
+InpRiskReductionStartDD=3.0
 InpRiskReductionFloor=0.25
 InpRolloverGuard=true
 InpRolloverStart=21
