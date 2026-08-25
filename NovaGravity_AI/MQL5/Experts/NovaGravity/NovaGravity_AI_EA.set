@@ -1,6 +1,6 @@
 ; -----------------------------------------------------------------
 ;  NOVA GRAVITY AI - PRO profile (defaults)
-;  NOVA GRAVITY AI  |  MetaTrader 5  |  Auto-Multi-Class EA v1.01
+;  NOVA GRAVITY AI  |  MetaTrader 5  |  Auto-Multi-Class EA v1.02
 ;  Generated: 2026-08-25
 ;  Import:  File > Open Data Folder > MQL5/Experts/NovaGravity/
 ;          2) right-click the EA on the chart -> Properties -> Load
@@ -103,3 +103,28 @@ InpRolloverSwapThreshold=-0.5
 InpRolloverAction=0
 InpJournalCSV=true
 InpNotifyOnGuards=false
+InpProfitLadderEnabled=true
+InpLadderRung1Points=40
+InpLadderRung1Percent=40.0
+InpLadderRung2Points=60
+InpLadderRung2Percent=30.0
+InpLadderRung3Points=100
+InpLadderRung3Percent=20.0
+InpLadderRung4Points=150
+InpLadderRung4Percent=10.0
+InpTrailMode=0
+InpTrailFixedPoints=250
+InpTrailPercentStep=50.0
+InpEquityGuardEnabled=true
+InpGuardDailyLossPct=5.0
+InpGuardMaxDrawdownPct=10.0
+InpGuardMinFreeMarginPct=30.0
+InpGuardMinHedgePct=20.0
+InpAdaptiveEngine=true
+InpAdaptiveEvalEvery=10
+InpAdaptiveMinSamples=12
+InpAdaptiveImprovePct=10.0
+InpAdaptivePersist=true
+InpAdaptiveReset=false
+InpSoundAlerts=true
+InpCustomSound="NovaGravity_alert.wav"

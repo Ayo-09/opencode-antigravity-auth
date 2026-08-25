@@ -12,8 +12,8 @@
 //+------------------------------------------------------------------+
 #property copyright "NOVA GRAVITY AI - Automated Trading Engine"
 #property link      ""
-#property version   "1.01"
-#property description "NOVA GRAVITY AI | Adaptive Multi-Class EA v1.01"
+#property version   "1.02"
+#property description "NOVA GRAVITY AI | Adaptive Multi-Class EA v1.02"
 #property description "Auto-detects symbol class (FX/Crypto/Gold/Oil/Indices/Stocks/USDT) and timeframe."
 #property description "Protection layer: Friday weekend guard, QUIET/VOLATILE regime filter,"
 #property description "partial close -> breakeven, max hold time stop, gap & spread filters."
@@ -33,6 +33,8 @@ enum ENUM_NG_SYMBOL_CLASS       { NG_CLASS_FOREX=0, NG_CLASS_CRYPTO=1, NG_CLASS_
                                   NG_CLASS_OIL=3, NG_CLASS_INDEX=4, NG_CLASS_STOCK=5,
                                   NG_CLASS_USDT=6, NG_CLASS_OTHER=7 };
 enum ENUM_NG_ROLLOVER_ACTION   { NG_ROLLOVER_BREAKEVEN=0, NG_ROLLOVER_CLOSE=1 };
+enum ENUM_NG_TRAIL_MODE        { NG_TRAIL_ATR=0, NG_TRAIL_POINTS=1,
+                                  NG_TRAIL_PERCENT=2, NG_TRAIL_LADDER=3 };
 
 //====================================================================
 //  INPUTS
@@ -152,6 +154,35 @@ input ENUM_NG_ROLLOVER_ACTION InpRolloverAction = NG_ROLLOVER_BREAKEVEN; // Guar
 input bool     InpJournalCSV            = true;                // Write NovaGravity_Journal.csv (MQL5/Files)
 input bool     InpNotifyOnGuards        = false;               // Push notification on critical events
 
+input group "===== 10 | PROFIT ENGINES: LADDER / TRAIL / EQUITY GUARD ====="
+input bool     InpProfitLadderEnabled   = true;                // 4-degree profit ladder (auto-adaptive)
+input int      InpLadderRung1Points     = 40;                  // Rung 1: profit points
+input double   InpLadderRung1Percent    = 40.0;                // Rung 1: % of volume closed
+input int      InpLadderRung2Points     = 60;                  // Rung 2: profit points
+input double   InpLadderRung2Percent    = 30.0;                // Rung 2: % of remaining closed
+input int      InpLadderRung3Points     = 100;                 // Rung 3: profit points
+input double   InpLadderRung3Percent    = 20.0;                // Rung 3: % of remaining closed
+input int      InpLadderRung4Points     = 150;                 // Rung 4: profit points
+input double   InpLadderRung4Percent    = 10.0;                // Rung 4: % of remaining closed
+input ENUM_NG_TRAIL_MODE InpTrailMode   = NG_TRAIL_ATR;        // Trailing mode (ATR | POINTS | PERCENT | LADDER)
+input int      InpTrailFixedPoints      = 250;                 // TRAIL_POINTS: move SL after +X points
+input double   InpTrailPercentStep      = 50.0;                // TRAIL_PERCENT: move SL at +% of profit-to-TP
+input bool     InpEquityGuardEnabled    = true;                // Equity Guard card (modeled on the reference panel)
+input double   InpGuardDailyLossPct     = 5.0;                 // Equity Guard: daily loss % goal
+input double   InpGuardMaxDrawdownPct   = 10.0;                // Equity Guard: max drawdown % goal
+input double   InpGuardMinFreeMarginPct = 30.0;                // Equity Guard: minimum free-margin % floor
+input double   InpGuardMinHedgePct      = 20.0;                // Equity Guard: minimum hedged % (info card)
+
+input group "===== 11 | ADAPTIVE AI ENGINE (self-learning optimization) ====="
+input bool     InpAdaptiveEngine        = true;                // Self-learning optimizer (auto-tunes & filters positive results)
+input int      InpAdaptiveEvalEvery     = 10;                  // Evaluate candidate genomes every N closed trades
+input int      InpAdaptiveMinSamples    = 12;                  // Min closed trades before a candidate is trusted
+input double   InpAdaptiveImprovePct    = 10.0;                // Switch only if new score beats current by %
+input bool     InpAdaptivePersist       = true;                // Save best genome + history to MQL5/Files
+input bool     InpAdaptiveReset         = false;               // Reset learned state on init
+input bool     InpSoundAlerts           = true;                // Audible alerts (PlaySound)
+input string   InpCustomSound           = "NovaGravity_alert.wav"; // Custom sound (MQL5/Sounds); falls back to alert.wav
+
 //====================================================================
 //  GLOBALS
 //====================================================================
@@ -177,11 +208,30 @@ int                g_regimeCache=1;            // cached regime (0=QUIET,1=NORMA
 bool               g_pfHalt=false;            // portfolio-wide halt (shared across charts)
 bool               g_pfNewHalt=false;         // set once when portfolio limit triggers
 bool               g_weekHaltLocal=false;     // local weekly halt (tester / no-sharing fallback)
+bool               g_haltedGuard=false;       // equity-guard halt (day/DD/margin floors)
 int                g_weekKey=0;               // week key for offset re-detect (DST)
 bool               g_journalWarned=false;     // avoid log spam
 
 #define NG_GPFX "NovaGravity_"
 #define NG_JOURNAL_FILE "NovaGravity_Journal.csv"
+#define NG_ADAPTIVE_FILE "NovaGravity_Adaptive_State.csv"
+#define NG_ADAPTIVE_LOG   "NovaGravity_Adaptive_Log.csv"
+
+// --- adaptive engine globals
+NG_Genome    g_genome;                    // currently active genome
+NG_Genome    g_bestGenome;                // historically best
+double       g_bestScore = -1.0;
+NG_Record    g_records[];                 // candidates history (kept positive)
+int          g_tradesSinceEval = 0;
+int          g_adaptiveSwitches = 0;
+string       g_adaptiveStatus = "LEARNING";
+bool         g_adaptiveInitialized = false;
+
+// --- live counters (dashboard)
+int          g_ctOpen=0, g_ctClose=0, g_ctPartial=0, g_ctBE=0, g_ctTrail=0, g_ctGuard=0;
+datetime     g_lastSound = 0;
+datetime     g_lastPanelDraw = 0;
+string       g_lastAdaptiveMsg = "";
 
 
 // position trackers
@@ -200,8 +250,38 @@ struct NG_Position
    bool    fridayDone;
    bool    reverseDone;
    bool    rolloverDone;
+   int     ladderStep;        // highest ladder rung already executed
+   int     genomeIdx;         // which genome indexed this trade
 };
 NG_Position g_positions[];
+
+// adaptive genome - tunable parameters the AI engine optimizes
+struct NG_Genome
+{
+   double partialTriggerRR;   // partial at X*R
+   double partialPct;         // % closed at partial
+   double beBufferATR;        // breakeven buffer (x ATR)
+   double trailStartRR;       // trail activation (x ATR from entry)
+   double trailStepATR;       // trail step (x ATR)
+   double slATR;              // initial SL (x ATR)
+   double tpATR;              // initial TP (x ATR)
+   double adxThreshold;       // ADX entry filter
+   double rsiLevel;           // RSI momentum level
+};
+
+// per-genome performance record (only POSITIVE outcomes are promoted)
+struct NG_Record
+{
+   NG_Genome  g;
+   int        trades;
+   int        wins;
+   double     net;            // net profit (positive only promoted)
+   double     peak;
+   double     dd;
+   double     score;          // PF * sqrt(N) / (DD%+eps)
+   long       lastUsed;       // datetime of last trade
+   bool       active;
+};
 
 // signal struct
 struct NG_Signal
@@ -232,6 +312,20 @@ string NgLogTag() { return "[NovaGravity] "; }
 void NgInfo(const string msg)  { Print(NgLogTag()+msg); }
 void NgWarn(const string msg)  { Print(NgLogTag()+"WARNING: "+msg); }
 void NgError(const string msg) { Print(NgLogTag()+"ERROR: "+msg); }
+
+//---- audible alert with cooldown (never spams)
+void NgSound(const string msg)
+{
+   if(!InpSoundAlerts) return;
+   if(MQLInfoInteger(MQL_TESTER)) return;
+   datetime now = TimeCurrent();
+   if(now - g_lastSound < 5) return;
+   g_lastSound = now;
+   string snd = InpCustomSound;
+   if(StringLen(snd) == 0) snd = "alert.wav";
+   PlaySound(snd);
+   if(StringLen(msg) > 0) NgInfo(msg);
+}
 
 //---- normalize volume by broker VOLUME_STEP (no blind 2-decimals)
 double NgNormalizeVolume(double lots)
@@ -598,14 +692,14 @@ bool NgPullbackLong()
    double pdi = NgBuf(hADX, 1, 1);
    double mdi = NgBuf(hADX, 2, 1);
    if(adx == EMPTY_VALUE || pdi == EMPTY_VALUE || mdi == EMPTY_VALUE) return false;
-   if(adx < InpADXThreshold) return false;
+   if(adx < g_genome.adxThreshold) return false;
    if(pdi <= mdi) return false;
 
    double rsi = NgBuf(hRSI, 0, 1);
    double macdM = NgBuf(hMACD, 0, 1);
    double macdS = NgBuf(hMACD, 1, 1);
    if(rsi == EMPTY_VALUE || macdM == EMPTY_VALUE || macdS == EMPTY_VALUE) return false;
-   if(rsi < InpRSIMomentumLevel) return false;
+   if(rsi < g_genome.rsiLevel) return false;
    if(macdM <= macdS) return false;
 
    double atr = NgBuf(hATR, 0, 1);
@@ -645,14 +739,14 @@ bool NgPullbackShort()
    double pdi = NgBuf(hADX, 1, 1);
    double mdi = NgBuf(hADX, 2, 1);
    if(adx == EMPTY_VALUE || pdi == EMPTY_VALUE || mdi == EMPTY_VALUE) return false;
-   if(adx < InpADXThreshold) return false;
+   if(adx < g_genome.adxThreshold) return false;
    if(mdi <= pdi) return false;
 
    double rsi = NgBuf(hRSI, 0, 1);
    double macdM = NgBuf(hMACD, 0, 1);
    double macdS = NgBuf(hMACD, 1, 1);
    if(rsi == EMPTY_VALUE || macdM == EMPTY_VALUE || macdS == EMPTY_VALUE) return false;
-   if(rsi > InpRSIMomentumLevel) return false;
+   if(rsi > g_genome.rsiLevel) return false;
    if(macdM >= macdS) return false;
 
    double atr = NgBuf(hATR, 0, 1);
@@ -804,6 +898,8 @@ bool NgOpenPosition(const int dir, const double lots, const double sl, const dou
       }
       return false;
    }
+   g_ctOpen++;
+   NgSound("open.trade");
    NgInfo("OPEN " + cmt + " | dir=" + (dir > 0 ? "BUY" : "SELL") +
           " lots=" + DoubleToString(lots, NgVolumeDigits()) +
           " price=" + DoubleToString(trade.ResultPrice(), _Digits) +
@@ -872,6 +968,13 @@ void NgTrackerAdd(const ulong ticket, const int dir)
    g_positions[n].beLocked = false;
    g_positions[n].fridayDone = false;
    g_positions[n].reverseDone = false;
+   g_positions[n].ladderStep = 0;
+   g_positions[n].genomeIdx = NgRecordFind(g_genome);
+   if(g_positions[n].genomeIdx < 0)
+   {
+      NgRecordAdd(g_genome);
+      g_positions[n].genomeIdx = ArraySize(g_records) - 1;
+   }
 }
 
 void NgSyncTrackers()
@@ -1000,6 +1103,7 @@ void NgRefreshDay()
       g_dayTrades = 0;
       g_haltToday = false;
       g_haltedDD = false;
+      g_haltedGuard = false;
    }
    //--- weekly: re-detect server GMT offset (DST changes) + reset weekly halt
    int wk = NgWeekKeyInt();
@@ -1010,6 +1114,238 @@ void NgRefreshDay()
       g_serverGmtOffset = NgDetectServerOffset();
       NgInfo("Week rollover -> server offset re-detected: " + IntegerToString(g_serverGmtOffset) + "h GMT");
    }
+}
+
+//====================================================================
+//  ADAPTIVE AI ENGINE
+//  - tunable genome mutated by small deltas after every evaluation
+//  - only POSITIVE (profitable) candidate results are kept & promoted
+//  - best genome auto-selected & persisted; entry/exit logic consumes it
+//  - always clamped to safe bounds (never martingale / never reckless)
+//====================================================================
+void NgGenomeDefaults(NG_Genome &g)
+{
+   g.partialTriggerRR = InpPartialCloseAtRR;
+   g.partialPct       = InpPartialClosePercent;
+   g.beBufferATR      = InpBreakEvenBufferATR;
+   g.trailStartRR     = InpTrailingStartATR;
+   g.trailStepATR     = InpTrailingStepATR;
+   g.slATR            = InpSL_ATR;
+   g.tpATR            = InpTP_ATR;
+   g.adxThreshold     = InpADXThreshold;
+   g.rsiLevel         = InpRSIMomentumLevel;
+}
+
+void NgGenomeClamp(NG_Genome &g)
+{
+   if(g.partialTriggerRR < 0.60) g.partialTriggerRR = 0.60;
+   if(g.partialTriggerRR > 1.80) g.partialTriggerRR = 1.80;
+   if(g.partialPct < 20.0) g.partialPct = 20.0;
+   if(g.partialPct > 70.0) g.partialPct = 70.0;
+   if(g.beBufferATR < 0.03) g.beBufferATR = 0.03;
+   if(g.beBufferATR > 0.30) g.beBufferATR = 0.30;
+   if(g.trailStartRR < 0.80) g.trailStartRR = 0.80;
+   if(g.trailStartRR > 3.00) g.trailStartRR = 3.00;
+   if(g.trailStepATR < 0.20) g.trailStepATR = 0.20;
+   if(g.trailStepATR > 1.50) g.trailStepATR = 1.50;
+   if(g.slATR < 1.00) g.slATR = 1.00;
+   if(g.slATR > 4.00) g.slATR = 4.00;
+   if(g.tpATR < 1.50) g.tpATR = 1.50;
+   if(g.tpATR > 6.00) g.tpATR = 6.00;
+   if(g.adxThreshold < 16.0) g.adxThreshold = 16.0;
+   if(g.adxThreshold > 32.0) g.adxThreshold = 32.0;
+   if(g.rsiLevel < 40.0) g.rsiLevel = 40.0;
+   if(g.rsiLevel > 60.0) g.rsiLevel = 60.0;
+}
+
+// small delta mutation: +/- n% of the range, always clamped
+void NgGenomeMutate(NG_Genome &src, NG_Genome &dst, const int seed)
+{
+   dst = src;
+   MathSrand(seed);
+   dst.partialTriggerRR += (MathRand()/32767.0 - 0.5) * 0.20;
+   dst.partialPct       += (MathRand()/32767.0 - 0.5) * 12.0;
+   dst.beBufferATR      += (MathRand()/32767.0 - 0.5) * 0.08;
+   dst.trailStartRR     += (MathRand()/32767.0 - 0.5) * 0.40;
+   dst.trailStepATR     += (MathRand()/32767.0 - 0.5) * 0.30;
+   dst.slATR            += (MathRand()/32767.0 - 0.5) * 0.60;
+   dst.tpATR            += (MathRand()/32767.0 - 0.5) * 0.80;
+   dst.adxThreshold     += (MathRand()/32767.0 - 0.5) * 3.0;
+   dst.rsiLevel         += (MathRand()/32767.0 - 0.5) * 5.0;
+   NgGenomeClamp(dst);
+}
+
+bool NgGenomeEqual(const NG_Genome &a, const NG_Genome &b)
+{
+   return (MathAbs(a.partialTriggerRR-b.partialTriggerRR) < 1e-6 &&
+           MathAbs(a.partialPct-b.partialPct) < 1e-6 &&
+           MathAbs(a.beBufferATR-b.beBufferATR) < 1e-6 &&
+           MathAbs(a.trailStartRR-b.trailStartRR) < 1e-6 &&
+           MathAbs(a.trailStepATR-b.trailStepATR) < 1e-6 &&
+           MathAbs(a.slATR-b.slATR) < 1e-6 &&
+           MathAbs(a.tpATR-b.tpATR) < 1e-6 &&
+           MathAbs(a.adxThreshold-b.adxThreshold) < 1e-6 &&
+           MathAbs(a.rsiLevel-b.rsiLevel) < 1e-6);
+}
+
+int NgRecordFind(const NG_Genome &g)
+{
+   for(int i = 0; i < ArraySize(g_records); i++)
+      if(NgGenomeEqual(g_records[i].g, g)) return i;
+   return -1;
+}
+
+void NgRecordAdd(const NG_Genome &g)
+{
+   int n = ArraySize(g_records);
+   if(n >= 40)
+   {
+      ArrayRemove(g_records, 0, 1);
+      n = ArraySize(g_records);
+   }
+   ArrayResize(g_records, n + 1);
+   g_records[n].g = g;
+   g_records[n].trades = 0;
+   g_records[n].wins = 0;
+   g_records[n].net = 0.0;
+   g_records[n].peak = 0.0;
+   g_records[n].dd = 0.0;
+   g_records[n].score = 0.0;
+   g_records[n].lastUsed = TimeCurrent();
+   g_records[n].active = true;
+}
+
+// called on every CLOSED position: keeps only positive-performing genomes
+void NgAdaptiveLearn(const int genomeIdx, const double profit, const double comm, const double swap)
+{
+   if(!InpAdaptiveEngine) return;
+   if(MQLInfoInteger(MQL_TESTER)) return;        // tester keeps its own optimizer
+   if(genomeIdx < 0 || genomeIdx >= ArraySize(g_records)) return;
+   NG_Record &r = g_records[genomeIdx];
+   double net = profit + comm + swap;
+   r.trades++;
+   if(net > 0.0) r.wins++;
+   r.net += net;
+   r.peak += (net > 0.0 ? net : 0.0);
+   if(r.net < 0.0 && r.net < -MathAbs(r.peak) * 0.5)
+      r.active = false;                          // disappointing genome: demoted
+   // score: win-ratio-weighted PF * sqrt(trades) / dd
+   double pf = (r.peak > 0.0 && r.net > 0.0) ? r.peak / MathMax(0.01, r.peak - r.net - (r.peak - r.net) * (1.0 - (double)r.wins / MathMax(r.trades,1))) : 0.0;
+   if(pf <= 0.0) pf = 0.0;
+   double ddPct = (r.peak > 0.0) ? MathMax(0.0, (r.peak - r.net) / r.peak * 100.0) : 0.0;
+   r.score = pf * MathSqrt((double)MathMax(r.trades,1)) / (ddPct + 1.0);
+   r.lastUsed = TimeCurrent();
+   g_tradesSinceEval++;
+}
+
+// evaluation: pick best ACTIVE, positive-genome record; switch with hysteresis
+void NgAdaptiveEvaluate()
+{
+   if(!InpAdaptiveEngine) return;
+   if(MQLInfoInteger(MQL_TESTER)) return;
+   if(g_tradesSinceEval < InpAdaptiveEvalEvery) return;
+   g_tradesSinceEval = 0;
+
+   int bestIdx = -1;
+   double bestScore = -1.0;
+   for(int i = 0; i < ArraySize(g_records); i++)
+   {
+      NG_Record &r = g_records[i];
+      if(!r.active) continue;
+      if(r.trades < InpAdaptiveMinSamples) continue;
+      if(r.net <= 0.0) continue;                  // only POSITIVE results promoted
+      if(r.score > bestScore)
+      {
+         bestScore = r.score;
+         bestIdx = i;
+      }
+   }
+
+   int curIdx = NgRecordFind(g_genome);
+   double curScore = (curIdx >= 0) ? g_records[curIdx].score : 0.0;
+   bool improve = (bestIdx >= 0 && bestScore > curScore * (1.0 + InpAdaptiveImprovePct/100.0));
+
+   if(improve)
+   {
+      g_genome = g_records[bestIdx].g;
+      g_adaptiveSwitches++;
+      g_bestGenome = g_genome;
+      g_bestScore = bestScore;
+      g_adaptiveStatus = "OPTIMIZED";
+      g_lastAdaptiveMsg = "switch #" + IntegerToString(g_adaptiveSwitches) +
+                          " | score " + DoubleToString(bestScore, 2) +
+                          " | T=" + IntegerToString(g_records[bestIdx].trades) +
+                          " | partial@" + DoubleToString(g_genome.partialTriggerRR,2) + "R " +
+                          DoubleToString(g_genome.partialPct,0) + "%" +
+                          " | SL " + DoubleToString(g_genome.slATR,2) + "x TP " + DoubleToString(g_genome.tpATR,2) + "x" +
+                          " | ADX " + DoubleToString(g_genome.adxThreshold,1) +
+                          " | RSI " + DoubleToString(g_genome.rsiLevel,1);
+      NgSound("adaptive.switch");
+      NgInfo("ADAPTIVE: " + g_lastAdaptiveMsg);
+      NgAdaptivePersistState();
+   }
+   else if(bestIdx >= 0)
+   {
+      g_adaptiveStatus = "LEARNING";
+      g_lastAdaptiveMsg = "best score " + DoubleToString(bestScore, 2) +
+                          " vs current " + DoubleToString(curScore, 2) + " (not enough edge yet)";
+   }
+   else
+   {
+      g_adaptiveStatus = "LEARNING";
+      g_lastAdaptiveMsg = "insufficient positive samples (" + IntegerToString(g_tradesSinceEval) + ")";
+   }
+}
+
+// ---- persistence (CSV): genome + records, survives restarts
+void NgAdaptivePersistState()
+{
+   if(!InpAdaptivePersist) return;
+   if(MQLInfoInteger(MQL_TESTER)) return;
+   int h = FileOpen(NG_ADAPTIVE_FILE, FILE_WRITE | FILE_CSV | FILE_ANSI, ',');
+   if(h == INVALID_HANDLE) return;
+   FileWrite(h, "version", "1.02");
+   FileWrite(h, "switches", IntegerToString(g_adaptiveSwitches));
+   FileWrite(h, "bestScore", DoubleToString(g_bestScore, 4));
+   FileWrite(h, "status", g_adaptiveStatus);
+   FileWrite(h, "pTrig", DoubleToString(g_genome.partialTriggerRR, 3));
+   FileWrite(h, "pPct",  DoubleToString(g_genome.partialPct, 1));
+   FileWrite(h, "beBuf", DoubleToString(g_genome.beBufferATR, 3));
+   FileWrite(h, "tStart", DoubleToString(g_genome.trailStartRR, 3));
+   FileWrite(h, "tStep", DoubleToString(g_genome.trailStepATR, 3));
+   FileWrite(h, "slATR", DoubleToString(g_genome.slATR, 3));
+   FileWrite(h, "tpATR", DoubleToString(g_genome.tpATR, 3));
+   FileWrite(h, "adxTh", DoubleToString(g_genome.adxThreshold, 2));
+   FileWrite(h, "rsiLv", DoubleToString(g_genome.rsiLevel, 2));
+   FileClose(h);
+}
+
+void NgAdaptiveLoadState()
+{
+   if(!InpAdaptivePersist) return;
+   if(MQLInfoInteger(MQL_TESTER)) return;
+   int h = FileOpen(NG_ADAPTIVE_FILE, FILE_READ | FILE_CSV | FILE_ANSI, ',');
+   if(h == INVALID_HANDLE) return;
+   string a, b;
+   while(!FileIsEnding(h))
+   {
+      a = FileReadString(h);
+      b = FileReadString(h);
+      if(a == "switches") g_adaptiveSwitches = (int)StringToInteger(b);
+      if(a == "bestScore") g_bestScore = StringToDouble(b);
+      if(a == "status") g_adaptiveStatus = b;
+      if(a == "pTrig") g_genome.partialTriggerRR = StringToDouble(b);
+      if(a == "pPct")  g_genome.partialPct = StringToDouble(b);
+      if(a == "beBuf") g_genome.beBufferATR = StringToDouble(b);
+      if(a == "tStart") g_genome.trailStartRR = StringToDouble(b);
+      if(a == "tStep") g_genome.trailStepATR = StringToDouble(b);
+      if(a == "slATR") g_genome.slATR = StringToDouble(b);
+      if(a == "tpATR") g_genome.tpATR = StringToDouble(b);
+      if(a == "adxTh") g_genome.adxThreshold = StringToDouble(b);
+      if(a == "rsiLv") g_genome.rsiLevel = StringToDouble(b);
+   }
+   FileClose(h);
+   NgGenomeClamp(g_genome);
 }
 
 //====================================================================
@@ -1251,8 +1587,11 @@ void NgJournalClosed(const ulong ticket)
       reason,
       IntegerToString(InpMagicNumber));
    FileClose(h);
+   g_ctClose++;
    NgInfo("JOURNAL: t=" + IntegerToString(ticket) + " " + reason +
           " pnl=" + DoubleToString(profit, 2));
+   NgAdaptiveLearn(p.genomeIdx, profit, comm, swap);
+   NgAdaptiveEvaluate();
 }
 
 //====================================================================
@@ -1324,6 +1663,115 @@ void NgFridayGuard()
 }
 
 //====================================================================
+//  PROFIT LADDER  (4 degrees, auto-adaptive points -> snapshots the reference)
+//====================================================================
+int NgLadderRung(const int dir, const double entry, const double currentPrice)
+{
+   double pts = SymbolInfoDouble(g_symbol, SYMBOL_POINT);
+   if(pts <= 0.0) return 0;
+   double profit = (dir > 0) ? (currentPrice - entry) : (entry - currentPrice);
+   double pPts = profit / pts;
+   int done = 0;
+   if(pPts >= InpLadderRung1Points) done = 1;
+   if(pPts >= InpLadderRung2Points) done = 2;
+   if(pPts >= InpLadderRung3Points) done = 3;
+   if(pPts >= InpLadderRung4Points) done = 4;
+   return done;
+}
+
+void NgExecuteLadder(const ulong ticket, NG_Position &pos, const int rung, const double currentPrice)
+{
+   if(!InpProfitLadderEnabled) return;
+   if(rung <= pos.ladderStep) return;             // already executed
+   if(!PositionSelectByTicket(ticket)) return;
+   if(PositionGetInteger(POSITION_TICKET) != (long)ticket) return;
+
+   double vol = PositionGetDouble(POSITION_VOLUME);
+   double pct = 0.0;
+   int points = 0;
+   switch(rung)
+   {
+      case 1: pct = InpLadderRung1Percent; points = InpLadderRung1Points; break;
+      case 2: pct = InpLadderRung2Percent; points = InpLadderRung2Points; break;
+      case 3: pct = InpLadderRung3Percent; points = InpLadderRung3Points; break;
+      case 4: pct = InpLadderRung4Percent; points = InpLadderRung4Points; break;
+   }
+   double closeVol = NgNormalizeVolume(vol * pct / 100.0);
+   if(closeVol >= vol - 1e-9) closeVol = 0.0;     // never close the whole position here
+   if(closeVol > 0.0 && NgClosePartial(ticket, closeVol))
+   {
+      pos.ladderStep = rung;
+      g_ctPartial++;
+      NgSound("partial.ladder");
+      NgInfo("LADDER rung " + IntegerToString(rung) + " (+" + IntegerToString(points) +
+             " pts) closed " + DoubleToString(pct, 0) + "%  vol=" + DoubleToString(closeVol, NgVolumeDigits()));
+      // after any ladder rung: SL must be at/above entry (lock)
+      if(InpBreakEvenAfterPartial)
+      {
+         double open = PositionGetDouble(POSITION_PRICE_OPEN);
+         double atr  = pos.atrAtEntry;
+         if(atr <= 0.0) atr = NgBuf(hATR, 0, 1);
+         double buf  = g_genome.beBufferATR * atr;
+         double beSL = (pos.dir > 0) ? open + buf : open - buf;
+         if(NgModifySL(ticket, beSL))
+         {
+            pos.beLocked = true;
+            g_ctBE++;
+            NgSound("breakeven.lock");
+         }
+      }
+   }
+}
+
+//====================================================================
+//  EQUITY GUARD  (capital-protection card: loss/DD/free-margin floors)
+//====================================================================
+bool NgEquityGuardViolation(string &why)
+{
+   if(!InpEquityGuardEnabled) return false;
+   double eq = AccountInfoDouble(ACCOUNT_EQUITY);
+   double bal = AccountInfoDouble(ACCOUNT_BALANCE);
+   if(bal <= 0.0 || eq <= 0.0) return false;
+
+   // free margin floor
+   double free = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+   double marginNow = AccountInfoDouble(ACCOUNT_MARGIN_USE);
+   if(marginNow > 0.0)
+   {
+      double freePct = 100.0 * free / MathMax(bal, 1.0);
+      if(freePct < InpGuardMinFreeMarginPct)
+      {
+         why = "FREE MARGIN " + DoubleToString(freePct, 1) + "% < " +
+               DoubleToString(InpGuardMinFreeMarginPct, 0) + "%";
+         return true;
+      }
+   }
+
+   // max drawdown floor (from peak equity)
+   if(g_peakEquity > 0.0)
+   {
+      double ddPct = 100.0 * (g_peakEquity - eq) / g_peakEquity;
+      if(ddPct >= InpGuardMaxDrawdownPct)
+      {
+         why = "DRAWDOWN " + DoubleToString(ddPct, 1) + "% >= " +
+               DoubleToString(InpGuardMaxDrawdownPct, 0) + "%";
+         return true;
+      }
+   }
+
+   // daily loss floor
+   double dayLoss = NgDayClosedPL() + NgFloatingPL();
+   double lim = bal * InpGuardDailyLossPct / 100.0;
+   if(dayLoss <= -lim)
+   {
+      why = "DAY LOSS " + DoubleToString(dayLoss, 2) + " <= -" +
+            DoubleToString(InpGuardDailyLossPct, 0) + "%";
+      return true;
+   }
+   return false;
+}
+
+//====================================================================
 //  POSITION MANAGEMENT (every tick)
 //====================================================================
 void NgManagePositions()
@@ -1345,33 +1793,44 @@ void NgManagePositions()
       double profitDist = (dir > 0) ? (priceNow - open) : (open - priceNow);
       if(slDist <= 0.0 || atr <= 0.0) atr = NgBuf(hATR, 0, 1);
 
-      //--- 1) partial close at 1R -> immediately move SL to breakeven
+      //--- 0) PROFIT LADDER (4 adaptive degrees) - before any other exit logic
+      if(InpProfitLadderEnabled)
+      {
+         int rung = NgLadderRung(dir, open, priceNow);
+         NgExecuteLadder(t, g_positions[i], rung, priceNow);
+         if(!PositionSelectByTicket(t)) continue;   // ladder may have changed volume
+         vol = PositionGetDouble(POSITION_VOLUME);
+      }
+
+      //--- 1) partial at 1R -> immediate breakeven lock
       if(InpPartialCloseEnabled && !g_positions[i].partialDone)
       {
-         double trigger = InpPartialCloseAtRR * slDist;
+         double trigger = g_genome.partialTriggerRR * slDist;
          if(profitDist >= trigger && slDist > 0.0)
          {
-            double partVol = NgNormalizeVolume(vol * InpPartialClosePercent / 100.0);
-            if(partVol < vol * 0.01) partVol = vol; // too small -> treat as full (guard)
+            double partVol = NgNormalizeVolume(vol * g_genome.partialPct / 100.0);
+            if(partVol < vol * 0.01) partVol = vol;
             if(partVol < vol - 1e-9 && NgClosePartial(t, partVol))
             {
                g_positions[i].partialDone = true;
-               NgInfo("PARTIAL DONE t=" + IntegerToString(t));
+               g_ctPartial++;
+               NgSound("partial.done");
             }
             if(g_positions[i].partialDone && InpBreakEvenAfterPartial && !g_positions[i].beLocked)
             {
-               double buf  = atr * InpBreakEvenBufferATR;
+               double buf  = g_genome.beBufferATR * atr;
                double beSL = (dir > 0) ? open + buf : open - buf;
                if(NgModifySL(t, beSL))
                {
                   g_positions[i].beLocked = true;
-                  NgInfo("BREAKEVEN LOCKED t=" + IntegerToString(t));
+                  g_ctBE++;
+                  NgSound("breakeven.lock");
                }
             }
          }
       }
 
-      //--- 1b) rollover/swap guard (negative swap window)
+      //--- 1b) rollover/swap guard
       if(InpRolloverGuard && !g_positions[i].rolloverDone && NgInRolloverWindow())
       {
          double posSwap = PositionGetDouble(POSITION_SWAP);
@@ -1382,47 +1841,107 @@ void NgManagePositions()
                if(NgCloseTicket(t, "ROLLOVER-GUARD (swap " + DoubleToString(posSwap, 2) + ")"))
                {
                   g_positions[i].rolloverDone = true;
+                  g_ctGuard++;
+                  NgSound("guard.rollover");
                   continue;
                }
             }
             else
             {
-               double open  = PositionGetDouble(POSITION_PRICE_OPEN);
-               double buf   = atr * InpBreakEvenBufferATR;
-               double beSL  = (dir > 0) ? open + buf : open - buf;
+               double buf  = g_genome.beBufferATR * atr;
+               double beSL = (dir > 0) ? open + buf : open - buf;
                if(NgModifySL(t, beSL))
                {
                   g_positions[i].rolloverDone = true;
-                  NgInfo("ROLLOVER-GUARD t=" + IntegerToString(t) + " -> breakeven");
+                  g_ctGuard++;
+                  NgSound("guard.rollover");
                }
             }
          }
       }
 
-      //--- 2) trailing stop (never worse than initial SL)
-      if(InpTrailingEnabled)
+      //--- 2) TRAILING - 4 modes (ATR | POINTS | PERCENT | LADDER), auto-adaptive
+      if(InpTrailingEnabled && !(InpTrailMode == NG_TRAIL_LADDER && !InpProfitLadderEnabled))
       {
-         double startDist = InpTrailingStartATR * atr;
-         double stepDist  = InpTrailingStepATR * atr;
-         if(profitDist >= startDist && stepDist > 0.0)
+         double startDist = g_genome.trailStartRR * atr;
+         double stepDist  = g_genome.trailStepATR * atr;
+         double desired = curSL;
+         bool activate = false;
+
+         switch(InpTrailMode)
          {
-            double desired = (dir > 0) ? (priceNow - stepDist) : (priceNow + stepDist);
-            double floorSL = curSL;
-            // anti-lock: after partial, SL must stay at/above breakeven
+            case NG_TRAIL_POINTS:
+            {
+               double pPts = profitDist / SymbolInfoDouble(g_symbol, SYMBOL_POINT);
+               if(pPts >= InpTrailFixedPoints)
+               {
+                  double stepPts = MathMax(20, InpTrailFixedPoints / 10);
+                  desired = (dir > 0) ? (priceNow - stepPts * SymbolInfoDouble(g_symbol, SYMBOL_POINT))
+                                      : (priceNow + stepPts * SymbolInfoDouble(g_symbol, SYMBOL_POINT));
+                  activate = true;
+               }
+               break;
+            }
+            case NG_TRAIL_PERCENT:
+            {
+               double tpDist = g_genome.tpATR * atr;
+               double pct = (tpDist > 0.0) ? 100.0 * profitDist / tpDist : 0.0;
+               if(pct >= InpTrailPercentStep)
+               {
+                  desired = (dir > 0) ? (priceNow - stepDist) : (priceNow + stepDist);
+                  activate = true;
+               }
+               break;
+            }
+            case NG_TRAIL_LADDER:
+            {
+               // trail rides on the highest executed ladder rung
+               int rung = g_positions[i].ladderStep;
+               if(rung > 0 && profitDist >= startDist)
+               {
+                  int basePts = 0;
+                  if(rung == 1) basePts = InpLadderRung1Points;
+                  if(rung == 2) basePts = InpLadderRung2Points;
+                  if(rung == 3) basePts = InpLadderRung3Points;
+                  if(rung == 4) basePts = InpLadderRung4Points;
+                  double lockPts = SymbolInfoDouble(g_symbol, SYMBOL_POINT) * MathMax(15, basePts / 4);
+                  desired = (dir > 0) ? (open + lockPts) : (open - lockPts);
+                  activate = true;
+               }
+               break;
+            }
+            default: // NG_TRAIL_ATR
+            {
+               if(profitDist >= startDist && stepDist > 0.0)
+               {
+                  desired = (dir > 0) ? (priceNow - stepDist) : (priceNow + stepDist);
+                  activate = true;
+               }
+               break;
+            }
+         }
+
+         if(activate)
+         {
+            double floorSL = g_positions[i].initialSL;
             if(g_positions[i].partialDone && g_positions[i].beLocked)
-               floorSL = (dir > 0) ? (open + atr * InpBreakEvenBufferATR) : (open - atr * InpBreakEvenBufferATR);
-            else
-               floorSL = g_positions[i].initialSL;
+               floorSL = (dir > 0) ? (open + g_genome.beBufferATR * atr)
+                                   : (open - g_genome.beBufferATR * atr);
             bool improve = (dir > 0) ? (desired > floorSL + _Point) : (desired < floorSL - _Point);
             if(improve)
             {
-               if(dir > 0 && desired > curSL + _Point) NgModifySL(t, desired);
-               if(dir < 0 && desired < curSL - _Point) NgModifySL(t, desired);
+               if((dir > 0 && desired > curSL + _Point) || (dir < 0 && desired < curSL - _Point))
+               {
+                  if(NgModifySL(t, desired))
+                  {
+                     g_ctTrail++;
+                  }
+               }
             }
          }
       }
 
-      //--- 3) time-stop (max holding period)
+      //--- 3) time-stop
       if(InpTimeExitEnabled)
       {
          int maxBars = NgMaxHoldForCurrentTF();
@@ -1469,6 +1988,17 @@ void NgProtectionLayer()
 {
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
    if(balance <= 0.0) return;
+
+   //--- Equity Guard (daily loss / max DD / free-margin floors)
+   string guardWhy = "";
+   if(NgEquityGuardViolation(guardWhy) && !g_haltedGuard)
+   {
+      NgCloseEvery("EQUITY GUARD :: " + guardWhy);
+      g_haltedGuard = true;
+      g_ctGuard++;
+      NgSound("guard.equity");
+      NgWarn("EQUITY GUARD triggered: " + guardWhy + " - all positions closed, trading halted");
+   }
 
    //--- global drawdown stop from peak equity
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
@@ -1552,66 +2082,240 @@ bool NgSpreadOK()
 //====================================================================
 //  ON-CHART PANEL
 //====================================================================
+//====================================================================
+//  NG DASHBOARD  (bitmap logo + gradient cards + live state)
+//  corner-anchored overlay: never scales or scrolls the chart
+//====================================================================
+color NgMix(const int step, const int max)
+{
+   // cyan -> magenta -> gold soft gradient (RGB lerp, clamped)
+   double k = (max > 0) ? (double)step / (double)max : 0.0;
+   if(k < 0.0) k = 0.0;
+   if(k > 1.0) k = 1.0;
+   int r = 34 + (int)((251 - 34) * k);
+   int g = 211 + (int)((110 - 211) * k);
+   int b = 238 + (int)((36  - 238) * k);
+   return (color)((r << 16) | (g << 8) | b);
+}
+
+void NgObjLabel(const string name, const int x, const int y, const string text,
+                const color col, const int size, const bool right=false)
+{
+   if(ObjectFind(0, name) < 0)
+      ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
+   ObjectSetString(0, name, OBJPROP_TEXT, text);
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
+   ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, size);
+   ObjectSetString(0, name, OBJPROP_FONT, "Segoe UI");
+   ObjectSetInteger(0, name, OBJPROP_COLOR, col);
+   ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, name, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, name, OBJPROP_BACK, false);
+   if(!right)
+      ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_RIGHT);
+}
+
+void NgObjRect(const string name, const int x, const int y, const int wdt, const int hgt,
+               const color bg, const color border)
+{
+   if(ObjectFind(0, name) < 0)
+      ObjectCreate(0, name, OBJ_RECTANGLE_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
+   ObjectSetInteger(0, name, OBJPROP_XSIZE, wdt);
+   ObjectSetInteger(0, name, OBJPROP_YSIZE, hgt);
+   ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bg);
+   ObjectSetInteger(0, name, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, border);
+   ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, name, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, name, OBJPROP_BACK, false);
+}
+
+// small "pill": rectangle + centered text label (uses two objects)
+void NgObjPill(const string name, const int x, const int y, const int wdt, const int hgt,
+               const string text, const color col, const bool on)
+{
+   color bg = on ? col : (color)C'15,30,50';
+   color br = on ? col : (color)C'40,60,90';
+   color fg = on ? (color)C'4,10,20' : (color)C'110,140,170';
+   NgObjRect(name + "_B", x, y, wdt, hgt, bg, br);
+   NgObjLabel(name + "_T", x + 6, y + 3, text, fg, on ? 9 : 8);
+}
+
 void NgDrawPanel(const int regime, const bool spreadOK, const bool newsBlocked, const bool sessionOK)
 {
    if(!InpShowPanel) return;
 
-   string nameBase = "NG_PANEL_";
-   int y = 20;
-   int x = 20;
-   color c1 = (regime == 0) ? clrOrange : (regime == 2) ? clrRed : clrLime;
+   const int RX = 356;        // panel width (right-anchored; never affects chart scale)
+   int y = 6;
 
-   string lines[];
-   int n = 0;
-   ArrayResize(lines, 15);
-   lines[n++] = "NOVA GRAVITY AI  |  " + g_className;
-   lines[n++] = "Symbol : " + g_symbol + "   TF : " + EnumToString(g_tf);
-   lines[n++] = "Server offset : " + IntegerToString(g_serverGmtOffset) + "h GMT";
-   lines[n++] = "Regime : " + ((regime == 0) ? "QUIET (waiting)" :
-                               (regime == 2) ? "VOLATILE" : "TREND/NORMAL");
-   lines[n++] = "ATR   : " + DoubleToString(NgBuf(hATR, 0, 1), _Digits);
-   double bid = SymbolInfoDouble(g_symbol, SYMBOL_BID);
-   double ask = SymbolInfoDouble(g_symbol, SYMBOL_ASK);
-   lines[n++] = "Spread: " + DoubleToString((ask - bid) / SymbolInfoDouble(g_symbol, SYMBOL_POINT), 1) + " pts  " + (spreadOK ? "[ok]" : "[TOO HIGH]");
-   lines[n++] = "Session : " + (sessionOK ? "OPEN" : "CLOSED") + "   News : " + (newsBlocked ? "BLOCKED" : "clear");
-   lines[n++] = "Positions : " + IntegerToString(NgCountOpen()) + " / " + IntegerToString(InpMaxOpenPositions);
-   lines[n++] = "Portfolio : " + (g_pfHalt ? "HALTED (shared limit)" : "OK  day/week shared");
-   lines[n++] = "Day trades : " + IntegerToString(g_dayTrades) + " / " + (InpMaxDailyTrades > 0 ? IntegerToString(InpMaxDailyTrades) : "inf");
-   lines[n++] = "Day P/L : " + DoubleToString(NgDayClosedPL() + NgFloatingPL(), 2);
-   lines[n++] = (g_haltToday || g_pfHalt ? "HALTED - loss limit" : (g_haltedDD ? "HALTED - DD stop" : "Trading " + (InpAllowNewTrades ? "ENABLED" : "PAUSED")));
-
-   // rectangle background
-   string bgName = nameBase + "BG";
-   if(ObjectFind(0, bgName) < 0)
-      ObjectCreate(0, bgName, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-   ObjectSetInteger(0, bgName, OBJPROP_XDISTANCE, x - 6);
-   ObjectSetInteger(0, bgName, OBJPROP_YDISTANCE, y - 6);
-   ObjectSetInteger(0, bgName, OBJPROP_XSIZE, 330);
-   ObjectSetInteger(0, bgName, OBJPROP_YSIZE, n * 16 + 16);
-   ObjectSetInteger(0, bgName, OBJPROP_BGCOLOR, C'8,16,28');
-   ObjectSetInteger(0, bgName, OBJPROP_COLOR, C'40,70,110');
-   ObjectSetInteger(0, bgName, OBJPROP_BORDER_TYPE, BORDER_FLAT);
-   ObjectSetInteger(0, bgName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-   ObjectSetInteger(0, bgName, OBJPROP_BACK, true);
-   ObjectSetInteger(0, bgName, OBJPROP_SELECTABLE, false);
-   ObjectSetInteger(0, bgName, OBJPROP_HIDDEN, true);
-
-   for(int i = 0; i < n; i++)
+   // ===== HEADER: bitmap logo + name =====
+   string logoname = "NGP_LOGO";
+   if(ObjectFind(0, logoname) < 0)
    {
-      string nm = nameBase + "T" + IntegerToString(i);
-      if(ObjectFind(0, nm) < 0)
-         ObjectCreate(0, nm, OBJ_LABEL, 0, 0, 0);
-      ObjectSetString(0, nm, OBJPROP_TEXT, lines[i]);
-      ObjectSetInteger(0, nm, OBJPROP_XDISTANCE, x);
-      ObjectSetInteger(0, nm, OBJPROP_YDISTANCE, y + i * 16);
-      ObjectSetInteger(0, nm, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, nm, OBJPROP_FONTSIZE, 10);
-      ObjectSetString(0, nm, OBJPROP_FONT, "Consolas");
-      color cc = (i == 0) ? clrAqua : (i == 2 || i == 12) ? clrYellow : (i == 9) ? c1 : clrSilver;
-      ObjectSetInteger(0, nm, OBJPROP_COLOR, cc);
-      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, nm, OBJPROP_HIDDEN, true);
+      ObjectCreate(0, logoname, OBJ_BITMAP_LABEL, 0, 0, 0);
+      ObjectSetString(0, logoname, OBJPROP_BMPFILE, "Images\\NovaGravity_Logo.bmp");
    }
+   ObjectSetInteger(0, logoname, OBJPROP_XDISTANCE, RX - 52);
+   ObjectSetInteger(0, logoname, OBJPROP_YDISTANCE, y);
+   ObjectSetInteger(0, logoname, OBJPROP_XSIZE, 46);
+   ObjectSetInteger(0, logoname, OBJPROP_YSIZE, 46);
+   ObjectSetInteger(0, logoname, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, logoname, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, logoname, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, logoname, OBJPROP_BACK, false);
+
+   NgObjLabel("NGP_NAMET", 130, y + 2, "NOVA GRAVITY AI", (color)C'34,211,238', 14);
+   NgObjLabel("NGP_NAMET2", 130, y + 21, "PROFIT ENGINE  |  v1.02", (color)C'232,121,249', 9);
+
+   // ===== STATUS ROW =====
+   y += 52;
+   bool halted = (g_haltToday || g_haltedDD || g_haltedGuard || g_pfHalt);
+   double eqNow = AccountInfoDouble(ACCOUNT_EQUITY);
+   bool inDrawdown = (g_peakEquity > 0.0 && eqNow < g_peakEquity);
+   color statCol = halted ? (color)C'251,113,133' : (inDrawdown ? (color)C'251,191,36' : (color)C'52,211,153');
+   NgObjPill("NGP_STAT", 24, y, 84, 20, (halted ? "HALTED" : "RUNNING"), statCol, true);
+   NgObjLabel("NGP_SYMT", 120, y + 3, g_symbol + "  |  " + EnumToString(g_tf) + "  |  " + g_className,
+              (color)C'217,236,255', 9);
+   y += 26;
+
+   // ===== EQUITY GUARD CARD =====
+   double bal = AccountInfoDouble(ACCOUNT_BALANCE);
+   double ddPct = (g_peakEquity > 0.0) ? 100.0*(g_peakEquity-eqNow)/g_peakEquity : 0.0;
+   double dayLoss = NgDayClosedPL() + NgFloatingPL();
+   double dayPct = (bal > 0.0) ? -100.0*dayLoss/bal : 0.0;
+   double freePct = (bal > 0.0) ? 100.0*AccountInfoDouble(ACCOUNT_MARGIN_FREE)/bal : 0.0;
+   bool ddOn  = (ddPct >= InpGuardMaxDrawdownPct*0.8);
+   bool dayOn = (dayPct >= InpGuardDailyLossPct*0.8);
+   bool freeOn= (freePct < InpGuardMinFreeMarginPct*1.5);
+
+   NgObjRect("NGP_EG_BG", RX - 344, y, 332, 36, (color)C'10,24,42', (color)C'34,211,238');
+   NgObjLabel("NGP_EG_T", 24, y + 4, "EQUITY GUARD", (color)C'34,211,238', 10);
+   color dayCol = dayOn ? (color)C'251,113,133' : (color)C'52,211,153';
+   color ddCol  = ddOn  ? (color)C'251,113,133' : (color)C'251,191,36';
+   color frCol  = freeOn? (color)C'251,191,36'  : (color)C'52,211,153';
+   NgObjPill("NGP_EG_L", RX - 344, y + 20, 100, 12, "يومي " + DoubleToString(dayPct,1) + "%", dayCol, true);
+   NgObjPill("NGP_EG_D", RX - 236, y + 20, 110, 12, "تراجع " + DoubleToString(ddPct,1) + "%", ddCol, true);
+   NgObjPill("NGP_EG_H", RX - 118, y + 20, 106, 12, "هامش " + DoubleToString(freePct,1) + "%", frCol, true);
+   y += 42;
+
+   // ===== LIVE ALERTS CARD =====
+   NgObjRect("NGP_AL_BG", RX - 344, y, 332, 108, (color)C'10,24,42', (color)C'232,121,249');
+   NgObjLabel("NGP_AL_T", 24, y + 4, "LIVE ALERTS", (color)C'232,121,249', 10);
+   int ax[3] = {RX - 344, RX - 240, RX - 136};
+   int ay[2] = {y + 20, y + 52};
+   int counts[6] = {g_ctOpen, g_ctClose, g_ctPartial, g_ctBE, g_ctTrail, g_ctGuard};
+   string labs[6] = {"فتح صفقة", "إغلاق صفقة", "إغلاق جزئي", "تعادل", "خطوات تتبع", "تدخل الحارس"};
+   color cols[6]  = {(color)C'52,211,153', (color)C'251,113,133', (color)C'251,191,36',
+                     (color)C'34,211,238', (color)C'167,139,250', (color)C'232,121,249'};
+   for(int r2 = 0; r2 < 2; r2++)
+   {
+      for(int c2 = 0; c2 < 3; c2++)
+      {
+         int idx = r2*3 + c2;
+         string nm = "NGP_AL_" + IntegerToString(r2) + "_" + IntegerToString(c2);
+         NgObjRect(nm+"_BG", ax[c2], ay[r2], 98, 26, (color)C'14,32,56', (color)C'40,70,110');
+         NgObjLabel(nm+"_V", ax[c2]+10, ay[r2]+2, IntegerToString(counts[idx]), cols[idx], 12);
+         NgObjLabel(nm+"_L", ax[c2]+10, ay[r2]+15, labs[idx], (color)C'127,156,192', 8);
+      }
+   }
+   y += 114;
+
+   // ===== TRAILING ENGINE CARD (3 stages) =====
+   NgObjRect("NGP_TR_BG", RX - 344, y, 332, 92, (color)C'10,24,42', (color)C'251,191,36');
+   NgObjLabel("NGP_TR_T", 24, y + 4, "TRAILING STEP  ·  PROTECT PROFITS", (color)C'251,191,36', 10);
+   string stag[3] = {"1 - إغلاق جزئي", "2 - نقطة تعادل", "3 - التتبع بالخطوة"};
+   string sv1[3] = {DoubleToString(g_genome.partialTriggerRR,2) + "R",
+                    DoubleToString(g_genome.beBufferATR,2) + " x ATR",
+                    "بداية " + DoubleToString(g_genome.trailStartRR,2) + "R"};
+   string sv2[3] = {DoubleToString(g_genome.partialPct,0) + "%",
+                    "تأمين +3 نقاط",
+                    "حجم " + DoubleToString(g_genome.trailStepATR,2) + " x ATR"};
+   color scol[3] = {(color)C'52,211,153', (color)C'34,211,238', (color)C'232,121,249'};
+   for(int c2 = 0; c2 < 3; c2++)
+   {
+      string nm = "NGP_TR_" + IntegerToString(c2);
+      NgObjRect(nm+"_BG", ax[c2], y+18, 98, 66, (color)C'14,32,56', scol[c2]);
+      NgObjLabel(nm+"_T", ax[c2]+10, y+21, stag[c2], scol[c2], 9);
+      NgObjLabel(nm+"_V1", ax[c2]+10, y+35, sv1[c2], (color)C'255,255,255', 8);
+      NgObjLabel(nm+"_V2", ax[c2]+10, y+49, sv2[c2], (color)C'217,236,255', 8);
+      NgObjLabel(nm+"_V3", ax[c2]+10, y+63, (c2==2 ? "نشط" : "نشط"), (color)C'127,156,192', 8);
+   }
+   y += 98;
+
+   // ===== 4 TRAIL MODES =====
+   NgObjLabel("NGP_TM_T", 24, y, "أنماط التتبع الأربعة", (color)C'167,139,250', 10);
+   y += 17;
+   string modeN[4] = {"ATR", "POINTS", "PERCENT", "LADDER"};
+   color modeC[4] = {(color)C'34,211,238', (color)C'52,211,153', (color)C'251,191,36', (color)C'232,121,249'};
+   for(int c2 = 0; c2 < 4; c2++)
+   {
+      string nm = "NGP_TM_" + IntegerToString(c2);
+      bool on = (InpTrailMode == (ENUM_NG_TRAIL_MODE)c2);
+      NgObjPill(nm, RX - 344 + c2*76, y, 70, 17, modeN[c2], modeC[c2], on);
+   }
+   y += 22;
+
+   // ===== PROFIT LADDER =====
+   NgObjLabel("NGP_LD_T", 24, y, "سلم تأمين الأرباح", (color)C'251,191,36', 10);
+   y += 17;
+   string lpN[4] = {"1", "2", "3", "4"};
+   int    lpPts[4] = {InpLadderRung1Points, InpLadderRung2Points, InpLadderRung3Points, InpLadderRung4Points};
+   double lpPct[4] = {InpLadderRung1Percent, InpLadderRung2Percent, InpLadderRung3Percent, InpLadderRung4Percent};
+   color  lpCol[4] = {(color)C'52,211,153', (color)C'34,211,238', (color)C'232,121,249', (color)C'251,191,36'};
+   int maxRung = 0;
+   for(int i = 0; i < ArraySize(g_positions); i++)
+      if(g_positions[i].ladderStep > maxRung) maxRung = g_positions[i].ladderStep;
+   for(int c2 = 0; c2 < 4; c2++)
+   {
+      string nm = "NGP_LD_" + IntegerToString(c2);
+      bool on = (maxRung >= c2+1);
+      NgObjRect(nm+"_BG", RX - 344 + c2*84, y, 78, 40, on ? (color)C'20,48,40' : (color)C'14,32,56', lpCol[c2]);
+      NgObjLabel(nm+"_N", RX - 344 + c2*84 + 10, y+1, lpN[c2], lpCol[c2], 10);
+      NgObjLabel(nm+"_P", RX - 344 + c2*84 + 10, y+16, IntegerToString(lpPts[c2]) + " -> " + IntegerToString((int)lpPct[c2]) + "%",
+                 (color)C'255,255,255', 9);
+      NgObjLabel(nm+"_S", RX - 344 + c2*84 + 10, y+29, on ? "تم" : "منتظر", (color)C'127,156,192', 8);
+   }
+   y += 46;
+
+   // ===== ADAPTIVE ENGINE CARD =====
+   NgObjRect("NGP_AD_BG", RX - 344, y, 332, 66, (color)C'10,24,42', (color)C'167,139,250');
+   NgObjLabel("NGP_AD_T", 24, y + 4, "ADAPTIVE AI ENGINE", (color)C'167,139,250', 10);
+   NgObjLabel("NGP_AD_ST", RX - 320, y + 5, g_adaptiveStatus, (g_adaptiveStatus=="OPTIMIZED" ? (color)C'52,211,153' : (color)C'167,139,250'), 8);
+   NgObjLabel("NGP_AD_1", 24, y+21, "partial " + DoubleToString(g_genome.partialTriggerRR,2) + "R | " +
+              DoubleToString(g_genome.partialPct,0) + "% | BE " + DoubleToString(g_genome.beBufferATR,2) + " x",
+              (color)C'217,236,255', 8);
+   NgObjLabel("NGP_AD_2", 24, y+37, "SL " + DoubleToString(g_genome.slATR,2) + " x | TP " + DoubleToString(g_genome.tpATR,2) +
+              " x | ADX " + DoubleToString(g_genome.adxThreshold,1) + " | RSI " + DoubleToString(g_genome.rsiLevel,1),
+              (color)C'217,236,255', 8);
+   NgObjLabel("NGP_AD_3", 24, y+53, "تبديلات: " + IntegerToString(g_adaptiveSwitches) + " | " + g_lastAdaptiveMsg,
+              (color)C'127,156,192', 8);
+   y += 72;
+
+   // ===== ACCOUNT + SETTINGS =====
+   NgObjRect("NGP_AC_BG", RX - 344, y, 332, 76, (color)C'10,24,42', (color)C'52,211,153');
+   NgObjLabel("NGP_AC_T", 24, y + 4, "ACCOUNT  |  SETTINGS", (color)C'52,211,153', 10);
+   double marginLvl = AccountInfoDouble(ACCOUNT_MARGIN_LEVEL);
+   NgObjLabel("NGP_AC_1", 24, y+22, "الرصيد  " + DoubleToString(bal,2), (color)C'251,191,36', 8);
+   NgObjLabel("NGP_AC_2", 24, y+38, "حقوق الملكية  " + DoubleToString(eqNow,2), (color)C'52,211,153', 8);
+   NgObjLabel("NGP_AC_3", 24, y+54, "هامش متاح  " + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_FREE),2),
+              (color)C'34,211,238', 8);
+   NgObjLabel("NGP_AC_4", 170, y+22, "مستوى الهامش  " + (marginLvl>0 ? DoubleToString(marginLvl,1)+"%" : "—"),
+              (color)C'232,121,249', 8);
+   NgObjLabel("NGP_AC_5", 170, y+38, "لوت " + DoubleToString(InpFixedLots,2) + " | ماجيك " + IntegerToString(InpMagicNumber),
+              (color)C'217,236,255', 8);
+   NgObjLabel("NGP_AC_6", 170, y+54, "مخاطرة " + DoubleToString(InpRiskPercent,1) + "% | سبريد " + (spreadOK ? "OK" : "HIGH"),
+              spreadOK ? (color)C'52,211,153' : (color)C'251,113,133', 8);
+   y += 82;
+
+   // ===== FOOTER =====
+   NgObjLabel("NGP_FT", 24, y, "صوت: " + (InpSoundAlerts ? "ON" : "OFF") + " | " +
+              TimeToString(TimeTradeServer(), TIME_DATE|TIME_MINUTES),
+              (color)C'127,156,192', 8);
 }
 
 //====================================================================
@@ -1695,6 +2399,20 @@ int OnInit()
    g_peakEquity = AccountInfoDouble(ACCOUNT_EQUITY);
    g_lastBarTime = iTime(g_symbol, g_tf, 0);
 
+   //--- adaptive engine boot
+   NgGenomeDefaults(g_genome);
+   NgGenomeDefaults(g_bestGenome);
+   if(InpAdaptiveReset) FileDelete(NG_ADAPTIVE_FILE);
+   NgAdaptiveLoadState();
+   NgRecordAdd(g_genome);
+   g_adaptiveInitialized = true;
+   if(g_bestScore > 0.0)
+      NgInfo("ADAPTIVE: restored best score " + DoubleToString(g_bestScore, 2) +
+             " | switches=" + IntegerToString(g_adaptiveSwitches));
+   else
+      NgInfo("ADAPTIVE: fresh learning loop (evaluate every " +
+             IntegerToString(InpAdaptiveEvalEvery) + " closed trades)");
+
    NgInfo("INIT OK | symbol=" + g_symbol + " class=" + g_className +
           " TF=" + EnumToString(g_tf) + " HTF=" + EnumToString(g_tfHTF) +
           " serverOffset=" + IntegerToString(g_serverGmtOffset) + "h GMT" +
@@ -1717,7 +2435,9 @@ void OnDeinit(const int reason)
    if(InpShowPanel)
    {
       ObjectsDeleteAll(0, "NG_PANEL_");
+      ObjectsDeleteAll(0, "NGP_");
    }
+   NgAdaptivePersistState();
    NgInfo("DEINIT reason=" + IntegerToString(reason));
 }
 
@@ -1758,10 +2478,16 @@ void OnTick()
    bool newsBlocked = NgInNewsBlackout();
    bool sessionOK  = NgInTradingSession();
    bool weekendOK  = !NgWeekendBlocked();
-   NgDrawPanel(g_regimeCache, spreadOK, newsBlocked, sessionOK);
+   //--- dashboard redraw: 1s throttle (80+ objects; keeps the chart snappy)
+   datetime nowS = TimeCurrent();
+   if(nowS - g_lastPanelDraw >= 1 || newBar)
+   {
+      g_lastPanelDraw = nowS;
+      NgDrawPanel(g_regimeCache, spreadOK, newsBlocked, sessionOK);
+   }
 
    if(!InpAllowNewTrades) return;
-   if(g_haltToday || g_haltedDD || g_pfHalt) return;
+   if(g_haltToday || g_haltedDD || g_haltedGuard || g_pfHalt) return;
 
    if(!newBar) return;
    if(!weekendOK || !spreadOK || newsBlocked || !sessionOK) return;
@@ -1774,11 +2500,11 @@ void OnTick()
    if(!NgEvaluateSignal(sig)) return;
    if(sig.dir == 0) return;
 
-   //--- build SL/TP
+   //--- build SL/TP (genome-driven when the adaptive engine is live)
    double atr = NgBuf(hATR, 0, 1);
    if(atr <= 0.0) return;
-   double slDist = InpSL_ATR * atr;
-   double tpDist = (InpTP_ATR > 0.0) ? (InpTP_ATR * atr) : (InpMinRR * slDist);
+   double slDist = g_genome.slATR * atr;
+   double tpDist = (g_genome.tpATR > 0.0) ? (g_genome.tpATR * atr) : (InpMinRR * slDist);
    if(tpDist / slDist < InpMinRR) return; // reward:risk must be acceptable
 
    double entry = (sig.dir > 0) ? SymbolInfoDouble(g_symbol, SYMBOL_ASK)

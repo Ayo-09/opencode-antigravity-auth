@@ -62,7 +62,7 @@ def render_set(rows, overrides, title):
     lines = [
         "; -----------------------------------------------------------------",
         ";  %s" % title,
-        ";  NOVA GRAVITY AI  |  MetaTrader 5  |  Auto-Multi-Class EA v1.01",
+        ";  NOVA GRAVITY AI  |  MetaTrader 5  |  Auto-Multi-Class EA v1.02",
         ";  Generated: %s" % datetime.date.today().isoformat(),
         ";  Import:  File > Open Data Folder > MQL5/Experts/NovaGravity/",
         ";          2) right-click the EA on the chart -> Properties -> Load",
@@ -135,7 +135,7 @@ def build_xlsx(path, rows):
     ws.column_dimensions["B"].width = 90
     data = [
         ("Bot Name", "NOVA GRAVITY AI"),
-        ("Version", "1.01 (Pro + Portfolio)"),
+        ("Version", "1.02 (Pro + Engines + AI)"),
         ("Platform", "MetaTrader 5 (MQL5) - current builds (5100+, tested against build notes up to 5660)"),
         ("Instruments", "Crypto / USDT-linked / Forex / Gold & Metals / Oil & Energy / Indices / Stocks"),
         ("Timeframes", "ALL (M1..MN1) - auto-detected from the chart"),

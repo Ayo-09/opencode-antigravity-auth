@@ -57,6 +57,14 @@ try {
   vm.runInContext("for(let i=0;i<400;i++)step();", context, { timeout: 60000 });
   console.log("STEP x400 OK — sim trades:", vm.runInContext("Object.values(market).reduce((s,st)=>s+st.trades.length,0)", context));
 
+  // adaptive tuner unit test: force a record, learn, evaluate
+  const t1 = {
+    genome:{partialTriggerRR:1.0,partialPct:50,beBufferATR:0.10,trailStartRR:1.5,trailStepATR:0.5,slATR:2.0,tpATR:3.0,adxThreshold:22,rsiLevel:50},
+    records:[],switches:0,tradesSinceEval:0,bestScore:-1,lastMsg:""};
+  vm.runInContext(`document.getElementById("chkTune").checked=true;tune=`+JSON.stringify(t1)+`;recAdd(tune.genome);for(let i=0;i<14;i++){tuneLearn(8+i%5);}tuneEvaluate();`,context);
+  const t2 = vm.runInContext(`({sw:tune.switches,msg:tune.lastMsg,recs:tune.records.length,score:tune.records[0]?tune.records[0].score.toFixed(2):0})`,context);
+  console.log("ADAPTIVE TEST:", JSON.stringify(t2));
+
   // inject 80-trade report and run new analytics
   vm.runInContext(`REPORTS.length=0; (()=>{const rows=[];const t0=Date.parse('2025-08-01T00:00:00Z');
     for(let i=0;i<80;i++){rows.push({sym:'XAUUSD',tf:'H1',dir:i%2?'buy':'sell',open:2600+i,close:2600+i+(i%5<3?1:-1)*8,
