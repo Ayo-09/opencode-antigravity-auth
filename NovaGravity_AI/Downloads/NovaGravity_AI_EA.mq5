@@ -1,4 +1,4 @@
-//+------------------------------------------------------------------+
+﻿//+------------------------------------------------------------------+
 //|                                               NovaGravity_AI_EA.mq5
 //|                                 NOVA GRAVITY AI  |  v1.00 (Pro)
 //|          Adaptive Multi-Class Expert Advisor for MetaTrader 5
@@ -35,6 +35,34 @@ enum ENUM_NG_SYMBOL_CLASS       { NG_CLASS_FOREX=0, NG_CLASS_CRYPTO=1, NG_CLASS_
 enum ENUM_NG_ROLLOVER_ACTION   { NG_ROLLOVER_BREAKEVEN=0, NG_ROLLOVER_CLOSE=1 };
 enum ENUM_NG_TRAIL_MODE        { NG_TRAIL_ATR=0, NG_TRAIL_POINTS=1,
                                   NG_TRAIL_PERCENT=2, NG_TRAIL_LADDER=3 };
+
+// adaptive genome - tunable parameters the AI engine optimizes
+struct NG_Genome
+{
+   double partialTriggerRR;   // partial at X*R
+   double partialPct;         // % closed at partial
+   double beBufferATR;        // breakeven buffer (x ATR)
+   double trailStartRR;       // trail activation (x ATR from entry)
+   double trailStepATR;       // trail step (x ATR)
+   double slATR;              // initial SL (x ATR)
+   double tpATR;              // initial TP (x ATR)
+   double adxThreshold;       // ADX entry filter
+   double rsiLevel;           // RSI momentum level
+};
+
+// per-genome performance record (only POSITIVE outcomes are promoted)
+struct NG_Record
+{
+   NG_Genome  g;
+   int        trades;
+   int        wins;
+   double     net;            // net profit (positive only promoted)
+   double     peak;
+   double     dd;
+   double     score;          // PF * sqrt(N) / (DD%+eps)
+   long       lastUsed;       // datetime of last trade
+   bool       active;
+};
 
 //====================================================================
 //  INPUTS
@@ -255,33 +283,6 @@ struct NG_Position
 };
 NG_Position g_positions[];
 
-// adaptive genome - tunable parameters the AI engine optimizes
-struct NG_Genome
-{
-   double partialTriggerRR;   // partial at X*R
-   double partialPct;         // % closed at partial
-   double beBufferATR;        // breakeven buffer (x ATR)
-   double trailStartRR;       // trail activation (x ATR from entry)
-   double trailStepATR;       // trail step (x ATR)
-   double slATR;              // initial SL (x ATR)
-   double tpATR;              // initial TP (x ATR)
-   double adxThreshold;       // ADX entry filter
-   double rsiLevel;           // RSI momentum level
-};
-
-// per-genome performance record (only POSITIVE outcomes are promoted)
-struct NG_Record
-{
-   NG_Genome  g;
-   int        trades;
-   int        wins;
-   double     net;            // net profit (positive only promoted)
-   double     peak;
-   double     dd;
-   double     score;          // PF * sqrt(N) / (DD%+eps)
-   long       lastUsed;       // datetime of last trade
-   bool       active;
-};
 
 // signal struct
 struct NG_Signal
@@ -402,7 +403,19 @@ double NgNormPrice(const double p) { return NormalizeDouble(p, _Digits); }
 //====================================================================
 //  SYMBOL CLASS DETECTION
 //====================================================================
-string NgToUpper(const string s) { return StringToUpper(s); }
+string NgToUpper(const string s)
+{
+   string r = "";
+   int len = StringLen(s);
+   StringSetCharacter(r, 0, 0); // ensure valid empty string
+   for(int i = 0; i < len; i++)
+   {
+      ushort c = StringGetCharacter(s, i);
+      if(c >= 'a' && c <= 'z') c -= 32;
+      r += ShortToString(c);
+   }
+   return r;
+}
 
 ENUM_NG_SYMBOL_CLASS NgDetectClass(const string sym)
 {
@@ -855,13 +868,9 @@ bool NgEvaluateSignal(NG_Signal &sig)
 bool NgFillingOK(const ENUM_ORDER_TYPE_FILLING mode)
 {
    long fill = SymbolInfoInteger(g_symbol, SYMBOL_FILLING_MODE);
-   switch(mode)
-   {
-      case ORDER_FILLING_FOK   : return ((fill & SYMBOL_FILLING_FOK) != 0);
-      case ORDER_FILLING_IOC   : return ((fill & SYMBOL_FILLING_IOC) != 0);
-      case ORDER_FILLING_RETURN: return ((fill & SYMBOL_FILLING_RETURN) != 0);
-      default                  : return true;
-   }
+   if(mode == ORDER_FILLING_FOK)   return ((fill & SYMBOL_FILLING_FOK) != 0);
+   if(mode == ORDER_FILLING_IOC)   return ((fill & SYMBOL_FILLING_IOC) != 0);
+   return true;   // RETURN / flexible: always allow the attempt
 }
 
 bool NgOpenPosition(const int dir, const double lots, const double sl, const double tp, const string cmt)
@@ -1221,20 +1230,24 @@ void NgAdaptiveLearn(const int genomeIdx, const double profit, const double comm
    if(!InpAdaptiveEngine) return;
    if(MQLInfoInteger(MQL_TESTER)) return;        // tester keeps its own optimizer
    if(genomeIdx < 0 || genomeIdx >= ArraySize(g_records)) return;
-   NG_Record &r = g_records[genomeIdx];
    double net = profit + comm + swap;
-   r.trades++;
-   if(net > 0.0) r.wins++;
-   r.net += net;
-   r.peak += (net > 0.0 ? net : 0.0);
-   if(r.net < 0.0 && r.net < -MathAbs(r.peak) * 0.5)
-      r.active = false;                          // disappointing genome: demoted
+
+   // index-based update (references to array elements are NOT allowed in MQL5)
+   g_records[genomeIdx].trades++;
+   if(net > 0.0) g_records[genomeIdx].wins++;
+   g_records[genomeIdx].net += net;
+   g_records[genomeIdx].peak += (net > 0.0 ? net : 0.0);
+   if(g_records[genomeIdx].net < 0.0 && g_records[genomeIdx].net < -MathAbs(g_records[genomeIdx].peak) * 0.5)
+      g_records[genomeIdx].active = false;       // disappointing genome: demoted
    // score: win-ratio-weighted PF * sqrt(trades) / dd
-   double pf = (r.peak > 0.0 && r.net > 0.0) ? r.peak / MathMax(0.01, r.peak - r.net - (r.peak - r.net) * (1.0 - (double)r.wins / MathMax(r.trades,1))) : 0.0;
+   double gpk = g_records[genomeIdx].peak;
+   double gnt = g_records[genomeIdx].net;
+   int    gtr = MathMax(g_records[genomeIdx].trades, 1);
+   double pf  = (gpk > 0.0 && gnt > 0.0) ? gpk / MathMax(0.01, gpk - gnt - (gpk - gnt) * (1.0 - (double)g_records[genomeIdx].wins / gtr)) : 0.0;
    if(pf <= 0.0) pf = 0.0;
-   double ddPct = (r.peak > 0.0) ? MathMax(0.0, (r.peak - r.net) / r.peak * 100.0) : 0.0;
-   r.score = pf * MathSqrt((double)MathMax(r.trades,1)) / (ddPct + 1.0);
-   r.lastUsed = TimeCurrent();
+   double ddPct = (gpk > 0.0) ? MathMax(0.0, (gpk - gnt) / gpk * 100.0) : 0.0;
+   g_records[genomeIdx].score = pf * MathSqrt((double)gtr) / (ddPct + 1.0);
+   g_records[genomeIdx].lastUsed = TimeCurrent();
    g_tradesSinceEval++;
 }
 
@@ -1250,13 +1263,12 @@ void NgAdaptiveEvaluate()
    double bestScore = -1.0;
    for(int i = 0; i < ArraySize(g_records); i++)
    {
-      NG_Record &r = g_records[i];
-      if(!r.active) continue;
-      if(r.trades < InpAdaptiveMinSamples) continue;
-      if(r.net <= 0.0) continue;                  // only POSITIVE results promoted
-      if(r.score > bestScore)
+      if(!g_records[i].active) continue;
+      if(g_records[i].trades < InpAdaptiveMinSamples) continue;
+      if(g_records[i].net <= 0.0) continue;       // only POSITIVE results promoted
+      if(g_records[i].score > bestScore)
       {
-         bestScore = r.score;
+         bestScore = g_records[i].score;
          bestIdx = i;
       }
    }
@@ -2113,8 +2125,7 @@ void NgObjLabel(const string name, const int x, const int y, const string text,
    ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, name, OBJPROP_HIDDEN, false);
    ObjectSetInteger(0, name, OBJPROP_BACK, false);
-   if(!right)
-      ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_RIGHT);
+   ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_RIGHT);
 }
 
 void NgObjRect(const string name, const int x, const int y, const int wdt, const int hgt,
@@ -2143,74 +2154,74 @@ void NgObjPill(const string name, const int x, const int y, const int wdt, const
    color br = on ? col : (color)C'40,60,90';
    color fg = on ? (color)C'4,10,20' : (color)C'110,140,170';
    NgObjRect(name + "_B", x, y, wdt, hgt, bg, br);
-   NgObjLabel(name + "_T", x + 6, y + 3, text, fg, on ? 9 : 8);
+   NgObjLabel(name + "_T", x + wdt - 6, y + 3, text, fg, on ? 9 : 8, true);
 }
 
 void NgDrawPanel(const int regime, const bool spreadOK, const bool newsBlocked, const bool sessionOK)
 {
    if(!InpShowPanel) return;
 
-   const int RX = 356;        // panel width (right-anchored; never affects chart scale)
-   int y = 6;
+   const int W  = 344;                  // panel width (px) - right anchored
+   const int X0 = 6;                    // distance of panel right edge from chart right
+   const int C  = X0 + 6;               // X for titles (near right edge)
+   int y = 4;
 
-   // ===== HEADER: bitmap logo + name =====
-   string logoname = "NGP_LOGO";
-   if(ObjectFind(0, logoname) < 0)
+   // ================= HEADER : BITMAP LOGO + NAME =================
+   if(ObjectFind(0, "NGP_LOGO") < 0)
    {
-      ObjectCreate(0, logoname, OBJ_BITMAP_LABEL, 0, 0, 0);
-      ObjectSetString(0, logoname, OBJPROP_BMPFILE, "Images\\NovaGravity_Logo.bmp");
+      ObjectCreate(0, "NGP_LOGO", OBJ_BITMAP_LABEL, 0, 0, 0);
+      ObjectSetString(0, "NGP_LOGO", OBJPROP_BMPFILE, "Images\\NovaGravity_Logo.bmp");
    }
-   ObjectSetInteger(0, logoname, OBJPROP_XDISTANCE, RX - 52);
-   ObjectSetInteger(0, logoname, OBJPROP_YDISTANCE, y);
-   ObjectSetInteger(0, logoname, OBJPROP_XSIZE, 46);
-   ObjectSetInteger(0, logoname, OBJPROP_YSIZE, 46);
-   ObjectSetInteger(0, logoname, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0, logoname, OBJPROP_SELECTABLE, false);
-   ObjectSetInteger(0, logoname, OBJPROP_HIDDEN, false);
-   ObjectSetInteger(0, logoname, OBJPROP_BACK, false);
+   ObjectSetInteger(0, "NGP_LOGO", OBJPROP_XDISTANCE, X0);
+   ObjectSetInteger(0, "NGP_LOGO", OBJPROP_YDISTANCE, y);
+   ObjectSetInteger(0, "NGP_LOGO", OBJPROP_XSIZE, 44);
+   ObjectSetInteger(0, "NGP_LOGO", OBJPROP_YSIZE, 44);
+   ObjectSetInteger(0, "NGP_LOGO", OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, "NGP_LOGO", OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, "NGP_LOGO", OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, "NGP_LOGO", OBJPROP_BACK, false);
 
-   NgObjLabel("NGP_NAMET", 130, y + 2, "NOVA GRAVITY AI", (color)C'34,211,238', 14);
-   NgObjLabel("NGP_NAMET2", 130, y + 21, "PROFIT ENGINE  |  v1.02", (color)C'232,121,249', 9);
+   NgObjLabel("NGP_NAMET",  52, y + 1,  "NOVA GRAVITY AI", clrAqua, 14, false);
+   NgObjLabel("NGP_NAMET2", 52, y + 20, "PROFIT ENGINE  |  v1.02", clrMagenta, 9, false);
+   y += 50;
 
-   // ===== STATUS ROW =====
-   y += 52;
+   // ================= STATUS ROW =================
    bool halted = (g_haltToday || g_haltedDD || g_haltedGuard || g_pfHalt);
    double eqNow = AccountInfoDouble(ACCOUNT_EQUITY);
-   bool inDrawdown = (g_peakEquity > 0.0 && eqNow < g_peakEquity);
-   color statCol = halted ? (color)C'251,113,133' : (inDrawdown ? (color)C'251,191,36' : (color)C'52,211,153');
-   NgObjPill("NGP_STAT", 24, y, 84, 20, (halted ? "HALTED" : "RUNNING"), statCol, true);
-   NgObjLabel("NGP_SYMT", 120, y + 3, g_symbol + "  |  " + EnumToString(g_tf) + "  |  " + g_className,
-              (color)C'217,236,255', 9);
+   bool inDD = (g_peakEquity > 0.0 && eqNow < g_peakEquity);
+   color statCol = halted ? clrOrangeRed : (inDD ? clrGold : clrLimeGreen);
+   NgObjPill("NGP_STAT", X0, y, 78, 20, (halted ? "HALTED" : "RUNNING"), statCol, true);
+   NgObjLabel("NGP_SYMT", X0 + 88, y + 3, g_symbol + " | " + EnumToString(g_tf) + " | " + g_className +
+              " | " + (regime == 0 ? "QUIET" : (regime == 2 ? "VOLATILE" : "NORMAL")), clrWhite, 9, false);
    y += 26;
 
-   // ===== EQUITY GUARD CARD =====
+   // ================= CARD HELPERS =================
    double bal = AccountInfoDouble(ACCOUNT_BALANCE);
-   double ddPct = (g_peakEquity > 0.0) ? 100.0*(g_peakEquity-eqNow)/g_peakEquity : 0.0;
-   double dayLoss = NgDayClosedPL() + NgFloatingPL();
-   double dayPct = (bal > 0.0) ? -100.0*dayLoss/bal : 0.0;
+   double ddPct  = (g_peakEquity > 0.0) ? 100.0*(g_peakEquity-eqNow)/g_peakEquity : 0.0;
+   double dayPL  = NgDayClosedPL() + NgFloatingPL();
+   double dayPct = (bal > 0.0) ? -100.0*dayPL/bal : 0.0;
    double freePct = (bal > 0.0) ? 100.0*AccountInfoDouble(ACCOUNT_MARGIN_FREE)/bal : 0.0;
-   bool ddOn  = (ddPct >= InpGuardMaxDrawdownPct*0.8);
-   bool dayOn = (dayPct >= InpGuardDailyLossPct*0.8);
-   bool freeOn= (freePct < InpGuardMinFreeMarginPct*1.5);
+   double marginLvl = AccountInfoDouble(ACCOUNT_MARGIN_LEVEL);
 
-   NgObjRect("NGP_EG_BG", RX - 344, y, 332, 36, (color)C'10,24,42', (color)C'34,211,238');
-   NgObjLabel("NGP_EG_T", 24, y + 4, "EQUITY GUARD", (color)C'34,211,238', 10);
-   color dayCol = dayOn ? (color)C'251,113,133' : (color)C'52,211,153';
-   color ddCol  = ddOn  ? (color)C'251,113,133' : (color)C'251,191,36';
-   color frCol  = freeOn? (color)C'251,191,36'  : (color)C'52,211,153';
-   NgObjPill("NGP_EG_L", RX - 344, y + 20, 100, 12, "يومي " + DoubleToString(dayPct,1) + "%", dayCol, true);
-   NgObjPill("NGP_EG_D", RX - 236, y + 20, 110, 12, "تراجع " + DoubleToString(ddPct,1) + "%", ddCol, true);
-   NgObjPill("NGP_EG_H", RX - 118, y + 20, 106, 12, "هامش " + DoubleToString(freePct,1) + "%", frCol, true);
-   y += 42;
+   // ================= 1) EQUITY GUARD =================
+   NgObjRect("NGP_EG", X0, y, W, 40, (color)C'10,24,42', (color)C'34,211,238');
+   NgObjLabel("NGP_EG_T", C, y + 3, "EQUITY GUARD  [ ! ]", (color)C'34,211,238', 10, false);
+   NgObjLabel("NGP_EG_D", C,  y + 19, "DAY LOSS  %" + DoubleToString(dayPct,1) + "  of  " + DoubleToString(InpGuardDailyLossPct,0) + "%",
+              (dayPct >= InpGuardDailyLossPct*0.8 ? (color)C'251,113,133' : (color)C'52,211,153'), 8, false);
+   NgObjLabel("NGP_EG_DD", 118, y + 19, "DD  %" + DoubleToString(ddPct,1) + "  of  " + DoubleToString(InpGuardMaxDrawdownPct,0) + "%",
+              (ddPct >= InpGuardMaxDrawdownPct*0.8 ? (color)C'251,113,133' : (color)C'251,191,36'), 8, false);
+   NgObjLabel("NGP_EG_M", 190, y + 19, "MARGIN  %" + DoubleToString(freePct,1) + "  of  " + DoubleToString(InpGuardMinFreeMarginPct,0) + "%",
+              (freePct < InpGuardMinFreeMarginPct*1.5 ? (color)C'251,191,36' : (color)C'52,211,153'), 8, false);
+   y += 46;
 
-   // ===== LIVE ALERTS CARD =====
-   NgObjRect("NGP_AL_BG", RX - 344, y, 332, 108, (color)C'10,24,42', (color)C'232,121,249');
-   NgObjLabel("NGP_AL_T", 24, y + 4, "LIVE ALERTS", (color)C'232,121,249', 10);
-   int ax[3] = {RX - 344, RX - 240, RX - 136};
+   // ================= 2) LIVE ALERTS =================
+   NgObjRect("NGP_AL", X0, y, W, 92, (color)C'10,24,42', (color)C'232,121,249');
+   NgObjLabel("NGP_AL_T", C, y + 3, "LIVE ALERTS", (color)C'232,121,249', 10, false);
+   int ax[3] = {X0 + 4, X0 + 4 + 112, X0 + 4 + 224};
    int ay[2] = {y + 20, y + 52};
    int counts[6] = {g_ctOpen, g_ctClose, g_ctPartial, g_ctBE, g_ctTrail, g_ctGuard};
-   string labs[6] = {"فتح صفقة", "إغلاق صفقة", "إغلاق جزئي", "تعادل", "خطوات تتبع", "تدخل الحارس"};
-   color cols[6]  = {(color)C'52,211,153', (color)C'251,113,133', (color)C'251,191,36',
+   string labs[6] = {"OPEN", "CLOSE", "PARTIAL", "BREAKEVEN", "TRAIL", "GUARD"};
+   color  cols[6] = {(color)C'52,211,153', (color)C'251,113,133', (color)C'251,191,36',
                      (color)C'34,211,238', (color)C'167,139,250', (color)C'232,121,249'};
    for(int r2 = 0; r2 < 2; r2++)
    {
@@ -2218,50 +2229,50 @@ void NgDrawPanel(const int regime, const bool spreadOK, const bool newsBlocked, 
       {
          int idx = r2*3 + c2;
          string nm = "NGP_AL_" + IntegerToString(r2) + "_" + IntegerToString(c2);
-         NgObjRect(nm+"_BG", ax[c2], ay[r2], 98, 26, (color)C'14,32,56', (color)C'40,70,110');
-         NgObjLabel(nm+"_V", ax[c2]+10, ay[r2]+2, IntegerToString(counts[idx]), cols[idx], 12);
-         NgObjLabel(nm+"_L", ax[c2]+10, ay[r2]+15, labs[idx], (color)C'127,156,192', 8);
+         NgObjRect(nm+"_B", ax[c2], ay[r2], 104, 27, (color)C'14,32,56', (color)C'40,70,110');
+         NgObjLabel(nm+"_V", ax[c2]+98, ay[r2]+2, IntegerToString(counts[idx]), cols[idx], 12, true);
+         NgObjLabel(nm+"_L", ax[c2]+98, ay[r2]+16, labs[idx], (color)C'127,156,192', 8, true);
       }
-   }
-   y += 114;
-
-   // ===== TRAILING ENGINE CARD (3 stages) =====
-   NgObjRect("NGP_TR_BG", RX - 344, y, 332, 92, (color)C'10,24,42', (color)C'251,191,36');
-   NgObjLabel("NGP_TR_T", 24, y + 4, "TRAILING STEP  ·  PROTECT PROFITS", (color)C'251,191,36', 10);
-   string stag[3] = {"1 - إغلاق جزئي", "2 - نقطة تعادل", "3 - التتبع بالخطوة"};
-   string sv1[3] = {DoubleToString(g_genome.partialTriggerRR,2) + "R",
-                    DoubleToString(g_genome.beBufferATR,2) + " x ATR",
-                    "بداية " + DoubleToString(g_genome.trailStartRR,2) + "R"};
-   string sv2[3] = {DoubleToString(g_genome.partialPct,0) + "%",
-                    "تأمين +3 نقاط",
-                    "حجم " + DoubleToString(g_genome.trailStepATR,2) + " x ATR"};
-   color scol[3] = {(color)C'52,211,153', (color)C'34,211,238', (color)C'232,121,249'};
-   for(int c2 = 0; c2 < 3; c2++)
-   {
-      string nm = "NGP_TR_" + IntegerToString(c2);
-      NgObjRect(nm+"_BG", ax[c2], y+18, 98, 66, (color)C'14,32,56', scol[c2]);
-      NgObjLabel(nm+"_T", ax[c2]+10, y+21, stag[c2], scol[c2], 9);
-      NgObjLabel(nm+"_V1", ax[c2]+10, y+35, sv1[c2], (color)C'255,255,255', 8);
-      NgObjLabel(nm+"_V2", ax[c2]+10, y+49, sv2[c2], (color)C'217,236,255', 8);
-      NgObjLabel(nm+"_V3", ax[c2]+10, y+63, (c2==2 ? "نشط" : "نشط"), (color)C'127,156,192', 8);
    }
    y += 98;
 
-   // ===== 4 TRAIL MODES =====
-   NgObjLabel("NGP_TM_T", 24, y, "أنماط التتبع الأربعة", (color)C'167,139,250', 10);
+   // ================= 3) TRAILING STEP (3 stages) =================
+   NgObjRect("NGP_TR", X0, y, W, 92, (color)C'10,24,42', (color)C'251,191,36');
+   NgObjLabel("NGP_TR_T", C, y + 3, "TRAILING STEP - PROFIT PROTECT", (color)C'251,191,36', 10, false);
+   string stag[3] = {"1-PARTIAL", "2-BREAKEVEN", "3-TRAIL"};
+   string sv1[3] = {DoubleToString(g_genome.partialTriggerRR,2) + "R",
+                    DoubleToString(g_genome.beBufferATR,2) + "x ATR",
+                    "start " + DoubleToString(g_genome.trailStartRR,2) + "R"};
+   string sv2[3] = {DoubleToString(g_genome.partialPct,0) + "%",
+                    "lock +3 pts",
+                    "step " + DoubleToString(g_genome.trailStepATR,2) + "x"};
+   color  scol[3] = {(color)C'52,211,153', (color)C'34,211,238', (color)C'232,121,249'};
+   for(int c2 = 0; c2 < 3; c2++)
+   {
+      string nm = "NGP_TR_" + IntegerToString(c2);
+      NgObjRect(nm+"_B", ax[c2], y+18, 104, 66, (color)C'14,32,56', scol[c2]);
+      NgObjLabel(nm+"_T", ax[c2]+98, y+21, stag[c2], scol[c2], 9, true);
+      NgObjLabel(nm+"_1", ax[c2]+98, y+36, sv1[c2], clrWhite, 8, true);
+      NgObjLabel(nm+"_2", ax[c2]+98, y+51, sv2[c2], (color)C'217,236,255', 8, true);
+      NgObjLabel(nm+"_3", ax[c2]+98, y+66, (c2==2 ? "ACTIVE" : "ACTIVE"), (color)C'127,156,192', 8, true);
+   }
+   y += 98;
+
+   // ================= 4) FOUR TRAIL MODES =================
+   NgObjLabel("NGP_TM_T", C, y, "TRAIL MODES", (color)C'167,139,250', 10, false);
    y += 17;
    string modeN[4] = {"ATR", "POINTS", "PERCENT", "LADDER"};
-   color modeC[4] = {(color)C'34,211,238', (color)C'52,211,153', (color)C'251,191,36', (color)C'232,121,249'};
+   color  modeC[4] = {(color)C'34,211,238', (color)C'52,211,153', (color)C'251,191,36', (color)C'232,121,249'};
    for(int c2 = 0; c2 < 4; c2++)
    {
       string nm = "NGP_TM_" + IntegerToString(c2);
       bool on = (InpTrailMode == (ENUM_NG_TRAIL_MODE)c2);
-      NgObjPill(nm, RX - 344 + c2*76, y, 70, 17, modeN[c2], modeC[c2], on);
+      NgObjPill(nm, X0 + c2*84, y, 78, 17, modeN[c2], modeC[c2], on);
    }
-   y += 22;
+   y += 23;
 
-   // ===== PROFIT LADDER =====
-   NgObjLabel("NGP_LD_T", 24, y, "سلم تأمين الأرباح", (color)C'251,191,36', 10);
+   // ================= 5) PROFIT LADDER =================
+   NgObjLabel("NGP_LD_T", C, y, "PROFIT LADDER", (color)C'251,191,36', 10, false);
    y += 17;
    string lpN[4] = {"1", "2", "3", "4"};
    int    lpPts[4] = {InpLadderRung1Points, InpLadderRung2Points, InpLadderRung3Points, InpLadderRung4Points};
@@ -2274,48 +2285,45 @@ void NgDrawPanel(const int regime, const bool spreadOK, const bool newsBlocked, 
    {
       string nm = "NGP_LD_" + IntegerToString(c2);
       bool on = (maxRung >= c2+1);
-      NgObjRect(nm+"_BG", RX - 344 + c2*84, y, 78, 40, on ? (color)C'20,48,40' : (color)C'14,32,56', lpCol[c2]);
-      NgObjLabel(nm+"_N", RX - 344 + c2*84 + 10, y+1, lpN[c2], lpCol[c2], 10);
-      NgObjLabel(nm+"_P", RX - 344 + c2*84 + 10, y+16, IntegerToString(lpPts[c2]) + " -> " + IntegerToString((int)lpPct[c2]) + "%",
-                 (color)C'255,255,255', 9);
-      NgObjLabel(nm+"_S", RX - 344 + c2*84 + 10, y+29, on ? "تم" : "منتظر", (color)C'127,156,192', 8);
+      NgObjRect(nm+"_B", X0 + c2*84, y, 78, 40, on ? (color)C'20,48,40' : (color)C'14,32,56', lpCol[c2]);
+      NgObjLabel(nm+"_N", X0 + c2*84 + 72, y+1, lpN[c2], lpCol[c2], 10, true);
+      NgObjLabel(nm+"_P", X0 + c2*84 + 72, y+16, IntegerToString(lpPts[c2]) + " -> " + IntegerToString((int)lpPct[c2]) + "%", clrWhite, 9, true);
+      NgObjLabel(nm+"_S", X0 + c2*84 + 72, y+29, on ? "DONE" : "WAIT", (color)C'127,156,192', 8, true);
    }
    y += 46;
 
-   // ===== ADAPTIVE ENGINE CARD =====
-   NgObjRect("NGP_AD_BG", RX - 344, y, 332, 66, (color)C'10,24,42', (color)C'167,139,250');
-   NgObjLabel("NGP_AD_T", 24, y + 4, "ADAPTIVE AI ENGINE", (color)C'167,139,250', 10);
-   NgObjLabel("NGP_AD_ST", RX - 320, y + 5, g_adaptiveStatus, (g_adaptiveStatus=="OPTIMIZED" ? (color)C'52,211,153' : (color)C'167,139,250'), 8);
-   NgObjLabel("NGP_AD_1", 24, y+21, "partial " + DoubleToString(g_genome.partialTriggerRR,2) + "R | " +
-              DoubleToString(g_genome.partialPct,0) + "% | BE " + DoubleToString(g_genome.beBufferATR,2) + " x",
-              (color)C'217,236,255', 8);
-   NgObjLabel("NGP_AD_2", 24, y+37, "SL " + DoubleToString(g_genome.slATR,2) + " x | TP " + DoubleToString(g_genome.tpATR,2) +
-              " x | ADX " + DoubleToString(g_genome.adxThreshold,1) + " | RSI " + DoubleToString(g_genome.rsiLevel,1),
-              (color)C'217,236,255', 8);
-   NgObjLabel("NGP_AD_3", 24, y+53, "تبديلات: " + IntegerToString(g_adaptiveSwitches) + " | " + g_lastAdaptiveMsg,
-              (color)C'127,156,192', 8);
-   y += 72;
+   // ================= 6) ADAPTIVE AI ENGINE =================
+   NgObjRect("NGP_AD", X0, y, W, 64, (color)C'10,24,42', (color)C'167,139,250');
+   NgObjLabel("NGP_AD_T", C, y + 3, "ADAPTIVE AI ENGINE", (color)C'167,139,250', 10, false);
+   NgObjLabel("NGP_AD_S", 210, y + 4, g_adaptiveStatus, (g_adaptiveStatus=="OPTIMIZED" ? clrLimeGreen : (color)C'167,139,250'), 8, true);
+   NgObjLabel("NGP_AD_1", C, y+20, "partial " + DoubleToString(g_genome.partialTriggerRR,2) + "R | " +
+              DoubleToString(g_genome.partialPct,0) + "% | BE " + DoubleToString(g_genome.beBufferATR,2) + "x",
+              (color)C'217,236,255', 8, false);
+   NgObjLabel("NGP_AD_2", C, y+36, "SL " + DoubleToString(g_genome.slATR,2) + "x | TP " + DoubleToString(g_genome.tpATR,2) +
+              "x | ADX " + DoubleToString(g_genome.adxThreshold,1) + " | RSI " + DoubleToString(g_genome.rsiLevel,1),
+              (color)C'217,236,255', 8, false);
+   NgObjLabel("NGP_AD_3", C, y+51, "switches " + IntegerToString(g_adaptiveSwitches) + " | " + g_lastAdaptiveMsg,
+              (color)C'127,156,192', 8, false);
+   y += 70;
 
-   // ===== ACCOUNT + SETTINGS =====
-   NgObjRect("NGP_AC_BG", RX - 344, y, 332, 76, (color)C'10,24,42', (color)C'52,211,153');
-   NgObjLabel("NGP_AC_T", 24, y + 4, "ACCOUNT  |  SETTINGS", (color)C'52,211,153', 10);
-   double marginLvl = AccountInfoDouble(ACCOUNT_MARGIN_LEVEL);
-   NgObjLabel("NGP_AC_1", 24, y+22, "الرصيد  " + DoubleToString(bal,2), (color)C'251,191,36', 8);
-   NgObjLabel("NGP_AC_2", 24, y+38, "حقوق الملكية  " + DoubleToString(eqNow,2), (color)C'52,211,153', 8);
-   NgObjLabel("NGP_AC_3", 24, y+54, "هامش متاح  " + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_FREE),2),
-              (color)C'34,211,238', 8);
-   NgObjLabel("NGP_AC_4", 170, y+22, "مستوى الهامش  " + (marginLvl>0 ? DoubleToString(marginLvl,1)+"%" : "—"),
-              (color)C'232,121,249', 8);
-   NgObjLabel("NGP_AC_5", 170, y+38, "لوت " + DoubleToString(InpFixedLots,2) + " | ماجيك " + IntegerToString(InpMagicNumber),
-              (color)C'217,236,255', 8);
-   NgObjLabel("NGP_AC_6", 170, y+54, "مخاطرة " + DoubleToString(InpRiskPercent,1) + "% | سبريد " + (spreadOK ? "OK" : "HIGH"),
-              spreadOK ? (color)C'52,211,153' : (color)C'251,113,133', 8);
-   y += 82;
+   // ================= 7) ACCOUNT | SETTINGS =================
+   NgObjRect("NGP_AC", X0, y, W, 74, (color)C'10,24,42', (color)C'52,211,153');
+   NgObjLabel("NGP_AC_T", C, y + 3, "ACCOUNT | SETTINGS", (color)C'52,211,153', 10, false);
+   NgObjLabel("NGP_AC_1", C,  y+21, "BALANCE  " + DoubleToString(bal,2), (color)C'251,191,36', 8, false);
+   NgObjLabel("NGP_AC_2", C,  y+37, "EQUITY   " + DoubleToString(eqNow,2), (color)C'52,211,153', 8, false);
+   NgObjLabel("NGP_AC_3", C,  y+53, "FREE MARGIN  " + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_FREE),2), (color)C'34,211,238', 8, false);
+   NgObjLabel("NGP_AC_4", 160, y+21, "MARGIN L  " + (marginLvl>0 ? DoubleToString(marginLvl,1)+"%" : "n/a"), (color)C'232,121,249', 8, true);
+   NgObjLabel("NGP_AC_5", 160, y+37, "LOT " + DoubleToString(InpFixedLots,2) + " | MAGIC " + IntegerToString(InpMagicNumber), clrWhite, 8, true);
+   NgObjLabel("NGP_AC_6", 160, y+53, "RISK " + DoubleToString(InpRiskPercent,1) + "% | SPREAD " + (spreadOK ? "OK" : "HIGH"),
+              spreadOK ? clrLimeGreen : (color)C'251,113,133', 8, true);
+   y += 80;
 
-   // ===== FOOTER =====
-   NgObjLabel("NGP_FT", 24, y, "صوت: " + (InpSoundAlerts ? "ON" : "OFF") + " | " +
-              TimeToString(TimeTradeServer(), TIME_DATE|TIME_MINUTES),
-              (color)C'127,156,192', 8);
+   // ================= FOOTER =================
+   NgObjLabel("NGP_FT", C, y, "SOUND " + (InpSoundAlerts ? "ON" : "OFF") +
+              " | NEWS " + (newsBlocked ? "BLOCK" : "CLEAR") +
+              " | SESS " + (sessionOK ? "OPEN" : "CLOSED") +
+              " | " + TimeToString(TimeTradeServer(), TIME_DATE|TIME_MINUTES),
+              (color)C'127,156,192', 8, false);
 }
 
 //====================================================================
