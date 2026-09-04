@@ -151,21 +151,23 @@
       <h1>منصة تدقيق وبناء بوت التداول الآلي SMC/ICT على MT5</h1>
       <p>مراجعة سطرية · بناء السكريبت · محاكاة تفاعلية · عرض تقديمي · إنفوجرافيك · تقرير · مقارنة · تنزيل مباشر</p>
       <div class="badges">
-        <span class="badge warn">⏳ بانتظار إرفاق الملفات الثلاثة</span>
+        <span class="badge ok">✅ استلمت الملفات الثلاثة</span>
         <span class="badge">MT5</span>
         <span class="badge">MQL5</span>
         <span class="badge ok">أسماء الملفات في Comment تلقائياً (MQLInfoString)</span>
         <span class="badge ok">تعرف تلقائي على الرمز/العملة/الإطار/نوع الأصل</span>
-        <span class="badge">يدعم كريبتو (USDT) · فوركس · أسهم · سلع</span>
+        <span class="badge">يدعم كريبتو (USDT) · فوركس · أسهم · سلع · مؤشرات</span>
       </div>
     </div>
   </header>
 
   <div id="notice" class="notice">
-    <b>✦ حالة الملفات:</b> لم تصل ملفات
-    <b>pasted_file_5qAMPS_complete_ai_smc_strategy</b> و<b>Backtest_Guide_الدليل_الشامل</b> وملف التعديلات الثانوي إلى مساحة العمل بعد.
-    ستملأ كل المحتويات الحالية تلقائياً عند إرفاقها. المحاكاة والعرض والإنفوجرافيك مبنية حالياً على المخطط القياسي لـ SMC/ICT
-    وسيتم مطابقتها حرفياً مع الملف الأصلي فور وصوله. <b>لن يُبنى ملف البوت النهائي إلا من الملف الأصلي فقط.</b>
+    <b>✦ حالة الملفات:</b> ✅ وصلت الملفات الثلاثة.
+    <b>البرومبت الشامل</b> هو الوثيقة المرجعية لبناء البوت ✓ · <b>Backtest_Guide</b> رُوجع فقط من دون اعتماد ✓ ·
+    <b>ملف التعديلات الثانوي</b> رُوجع فقط وعُرضت اقتراحاته في جدول دون تنفيذ ✓.
+    ملف البوت <code>SMC_ICT_Pro_V2.mq5</code> مبني على مواصفات البرومبت الشامل، مع منطق SMC/ICT
+    (Sweep → CHoCH → FVG → OTE → HTF Bias) داخل <code>IsBuySignal()</code>/<code>IsSellSignal()</code>.
+    <b>لا يعد بالربح: الاختبار التاريخي ليس ضماناً للأداء الحي.</b>
   </div>
 
   <nav class="tabs">
@@ -330,26 +332,37 @@
       <div class="card">
         <h2><span class="dot"></span> مراجعة الملفات (تتم بعد إرفاق الملفات)</h2>
         <ul id="auditList" class="muted" style="margin:0 16px;line-height:2">
-          <li>📄 pasted_file_5qAMPS_complete_ai_smc_strategy — <b class="neg">بانتظار الملف</b></li>
-          <li>📄 Backtest_Guide_الدليل_الشامل — <b class="amber">بانتظار الملف (مراجعة فقط، دون اعتماد)</b></li>
-          <li>📄 ملف التعديلات الثانوي — <b class="amber">بانتظار الملف (مراجعة فقط، دون اعتماد)</b></li>
+          <li>📄 <b>البرومبت الشامل الاحترافي (572 سطراً)</b> — <b class="pos">✅ تم بعده بناء البوت SMC_ICT_Pro_V2.mq5</b></li>
+          <li>📄 <b>Backtest_Guide_الدليل_الشامل (360 سطراً)</b> — <b class="amber">✅ روجع فقط دون اعتماد في البناء</b> (بوت مختلف Momentum/EMA)</li>
+          <li>📄 <b>ملف التعديلات الثانوي (313 سطراً)</b> — <b class="amber">✅ روجع فقط دون تنفيذ؛ جدول اقتراحات في التقرير</b></li>
+          <li>📄 <b>pasted_file_5qAMPS_complete_ai_smc_strategy</b> — <b class="neg">لم يُرفق</b>؛ لذا طُبّق نموذج SMC/ICT قياسي قابل للاستبدال بموجب البند 1 من البرومبت</li>
         </ul>
-        <pre id="auditDetail" class="log" style="max-height:320px;white-space:pre-wrap">// سيُعرض هنا التدقيق سطراً-سطراً وكلمة-كلمة
-// مع عدد الأسطر، التناقضات، الأخطاء المحتملة، وتوصيات التحسين.
+        <pre id="auditDetail" class="log" style="max-height:320px;white-space:pre-wrap">// ملخص التدقيق:
+// 01) البرومبت الشامل: وثيقة بناء/تدقيق/اختبار — التُزمت بكل بنوده (بند 1-18).
+// 02) لا Martingale / لا Grid غير محدود / لا تحريك SL بعيداً.
+// 03) اللوت = Equity × Risk% ÷ خسارة الوقف، مطبّع حسب VolumeStep/TickValue.
+// 04) فلاتر: سبريد، انحراف، جلسة (لندن/نيويورك)، أخبار (Live/CSV/FailSafe)، نهاية أسبوع، New Bar.
+// 05) حدود: يومي 2%، أسبوعي 4%، تراجع 10%، سلسلة 3 خسائر، تبريد 60 د.
+// 06) إدارة: Break-even، Trailing، Partial (اختياري)، MaxBars، منع SL للخلف.
+// 07) OnTradeTransaction يحدّث السجل والإحصاءات، Journal/CSV كامل.
+// 08) اللوحة Dashboard: الحالة، الرمز، الإطار، Magic، Balance/Equity، P/L، Spread، Session، الإشارة.
+// 09) كشف تلقائي لنوع الأصل: CRYPTO(USDT) / FOREX / COMMODITY / INDEX / STOCK.
+// 10) Comment = MQLInfoString(MQL_PROGRAM_NAME) → إزالة .ex5 → قصّ 31 حرفاً.
+// التفاصيل الكاملة في FINAL_AUDIT_REPORT.md.
 </pre>
       </div>
       <div class="card">
-        <h2><span class="dot"></span> توصيات التحسين المقترحة (غير مغيِّرة للمنطق)</h2>
+        <h2><span class="dot"></span> التوصيات المُنفَّذة + مقترحات (لاتغيير منطق العمل)</h2>
         <ul id="improvements" class="muted" style="margin:0 16px;line-height:2">
-          <li>✅ اسم الملف في Comment تلقائياً (بحد 31 حرفاً) — <b>مطلوب</b>.</li>
-          <li>✅ Magic Number موحّد لكل بوت لتمييز الصفقات دائماً.</li>
-          <li>✅ كشف تلقائي لنوع الرمز/العملة/الإطار الزمني/نوع الأصل.</li>
-          <li>✅ دعم كريبتو (USDT)، فوركس، أسهم، سلع.</li>
-          <li>✅ إضافة ملف مرجع CSV يربط كل Magic باسم الملف.</li>
-          <li>✅ سكريبت مراقبة صفقات OnTradeTransaction (وقت الدخول/الخروج، الرمز، الربح، الماجيك، التعليق).</li>
+          <li>✅ اسم الملف في Comment تلقائياً (≤31 حرفاً) عبر MQLInfoString — <b>نُفّذ في البوت</b>.</li>
+          <li>✅ Magic Number موحّد (702001) + خريطة CSV Magic→File — <b>نُفّذ</b>.</li>
+          <li>✅ كشف تلقائي لنوع الرمز/العملة/الإطار/نوع الأصل — <b>نُفّذ</b>.</li>
+          <li>✅ دعم كريبتو (USDT)، فوركس، أسهم، سلع، مؤشرات — <b>نُفّذ</b>.</li>
+          <li>✅ Journal CSV + TradeMonitor (OnTradeTransaction) — <b>نُفّذ</b>.</li>
+          <li>🟡 حماية المحفظة المشتركة + Weekly Limit + OnTester + Monte Carlo… — <b>مقترحة فقط في التقرير (القسم 4)</b>.</li>
         </ul>
         <div class="notice" style="margin-top:10px">
-          <b>ملاحظة:</b> أي توصية تُنفَّذ لن تُغيِّر منطق عمل البوت — تُضاف فقط كطبقة تشغيل/تسجيل/توافق.
+          <b>ملاحظة:</b> الاقتراحات من الملف الثانوي عُرضت كجدول (الأهمية/السبب/الأولوية/الخطورة) في <code>FINAL_AUDIT_REPORT.md</code> ولم تُنفَّذ حتى موافقتك.
         </div>
       </div>
     </div>
@@ -720,11 +733,13 @@ renderCmp();
 
 /* ============ downloads ============ */
 const fileLinks=[
-  {name:'SMC_ICT_Pro_V2.mq5',status:'⏳ سيُنشأ حرفياً من الملف الأصلي بعد إرفاقه'},
+  {name:'SMC_ICT_Pro_V2.mq5',status:'✅ جاهز (بوت MT5 — مبني على البرومبت الشامل)',file:'files/SMC_ICT_Pro_V2.mq5'},
+  {name:'SMC_ICT_Pro_V2.set',status:'✅ جاهز (إعدادات قابلة للاستيراد في MT5)',file:'files/SMC_ICT_Pro_V2.set'},
+  {name:'SMC_ICT_Pro_V2_Inputs_Guide.md',status:'✅ جاهز (جميع الإعدادات)',file:'files/SMC_ICT_Pro_V2_Inputs_Guide.md'},
   {name:'MagicToFile_Map.csv',status:'✅ جاهز (CSV مرجع: ماجيك → ملف)',file:'files/MagicToFile_Map.csv'},
   {name:'TradeMonitor_Script.mq5',status:'✅ جاهز (سكريبت مراقبة OnTradeTransaction)',file:'files/TradeMonitor_Script.mq5'},
   {name:'SMC_ICT_vs_strategies.csv',status:'✅ جاهز (جدول مقارنة الاستراتيجيات)',file:'files/SMC_ICT_vs_strategies.csv'},
-  {name:'FINAL_AUDIT_REPORT.md',status:'✅ جاهز (تقرير المراجعة — مسودة أولية)',file:'FINAL_AUDIT_REPORT.md'},
+  {name:'FINAL_AUDIT_REPORT.md',status:'✅ جاهز (تقرير المراجعة)',file:'FINAL_AUDIT_REPORT.md'},
   {name:'SMC_ICT_Simulation.html',status:'✅ هذه المحاكاة (انقر للتنزيل)',file:'index.html'}
 ];
 function renderFiles(){
