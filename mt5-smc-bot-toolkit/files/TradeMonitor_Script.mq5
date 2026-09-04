@@ -100,7 +100,7 @@ bool OpenLog()
 
    if(InpOverwrite)
      {
-      FileWriteString(g_FileHandle, Header + "\r\n", FILE_ANSI);
+      FileWriteString(g_FileHandle, Header + "\r\n");
       FileFlush(g_FileHandle);
      }
    return(true);
@@ -126,7 +126,7 @@ void AppendRow(const string row)
   {
    if(g_FileHandle == INVALID_HANDLE) return;
    FileSeek(g_FileHandle, 0, SEEK_END);
-   FileWriteString(g_FileHandle, row + "\r\n", FILE_ANSI);
+   FileWriteString(g_FileHandle, row + "\r\n");
    FileFlush(g_FileHandle);
   }
 
