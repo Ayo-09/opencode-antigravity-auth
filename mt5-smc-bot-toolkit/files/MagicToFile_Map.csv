@@ -1,0 +1,7 @@
+Magic_Number,EA_Source_File,Symbol,Timeframe,Comment_Shown_In_Trades,Status,Note
+702001,pending_EA_from_source.mq5,BTCUSDT,H1,SMC_ICT_Pro_V2,PENDING,سيُحدَّد اسم الملف بعد إرفاق الملف الأصلي
+702002,pending_EA_from_source.mq5,XAUUSD,D1,SMC_ICT_Pro_V2,PENDING,نفس البوت على رمز/إطار آخر - ماجيك مختلف عند الحاجة
+702003,pending_EA_from_source.mq5,EURUSD,H4,SMC_ICT_Pro_V2,PENDING,نفس البوت على فوركس
+702004,pending_EA_from_source.mq5,US500,H1,SMC_ICT_Pro_V2,PENDING,نفس البوت على أسهم/مؤشر
+0,UNKNOWN,ANY,ANY,CLEAR_TO_IDENTIFY,REFERENCE,MT5 لا يحفظ اسم ملف البوت في الصفقة - الخادم يحفظ فقط Magic + Comment(<=31 حرفًا)
+,,,,,,ملاحظة: الموجة الوحيدة الموثوقة لتحديد اسم الملف هي مزيج Magic + Comment + Experts Journal + الشارتات المفتوحة

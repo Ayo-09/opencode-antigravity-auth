@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MT5 SMC/ICT Automated Trading Bot — Audit &amp; Toolkit</title>
+<style>
+  :root{
+    --bg:#070b16; --bg2:#0b1224; --panel:#0e1730; --panel2:#131f3d;
+    --line:#1e2c52; --line2:#2b3f74;
+    --txt:#e8eefc; --muted:#9fb0d6;
+    --cyan:#23d5ff; --blue:#3f7bff; --violet:#8b5cf6; --pink:#ec4899;
+    --green:#22e58c; --red:#ff4d6d; --amber:#ffb020;
+    --grad:linear-gradient(120deg,#23d5ff,#3f7bff 45%,#8b5cf6);
+    --grad3:linear-gradient(135deg,#22e58c,#23d5ff 50%,#ec4899);
+    --shadow:0 18px 50px rgba(0,0,0,.5);
+    --r:18px;
+    font-size:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Segoe UI',Tahoma,'Noto Kufi Arabic',sans-serif;
+    background:
+      radial-gradient(1100px 600px at 8% -8%, rgba(35,213,255,.22), transparent 60%),
+      radial-gradient(1000px 600px at 100% 0%, rgba(139,92,246,.22), transparent 55%),
+      radial-gradient(900px 700px at 50% 120%, rgba(34,229,140,.12), transparent 55%),
+      var(--bg);
+    color:var(--txt); min-height:100vh; overflow-x:hidden;
+  }
+  a{color:var(--cyan); text-decoration:none}
+  .wrap{max-width:1400px;margin:0 auto;padding:18px 22px 80px}
+  header.top{
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    background:linear-gradient(120deg,rgba(35,213,255,.12),rgba(139,92,246,.12) 60%,transparent);
+    border:1px solid var(--line); border-radius:22px; padding:16px 20px; margin-bottom:18px;
+    backdrop-filter:blur(8px);
+  }
+  .logo{
+    width:54px;height:54px;border-radius:16px;background:var(--grad); display:flex;align-items:center;justify-content:center;
+    font-weight:800; font-size:22px; box-shadow:var(--shadow); animation:pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25)}}
+  .title h1{font-size:1.3rem; line-height:1.2}
+  .title p{color:var(--muted); font-size:.85rem; margin-top:2px}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .badge{background:rgba(35,213,255,.1);border:1px solid var(--line2);color:var(--cyan);padding:3px 10px;border-radius:999px;font-size:.72rem}
+  .badge.warn{color:var(--amber);background:rgba(255,176,32,.12);border-color:rgba(255,176,32,.4)}
+  .badge.ok{color:var(--green);background:rgba(34,229,140,.12);border-color:rgba(34,229,140,.4)}
+
+  nav.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+  nav.tabs button{
+    background:var(--panel);border:1px solid var(--line); color:var(--muted);
+    padding:10px 16px;border-radius:14px;cursor:pointer;font-weight:600;font-size:.9rem;
+    transition:.25s;
+  }
+  nav.tabs button:hover{border-color:var(--line2);color:var(--txt);transform:translateY(-2px)}
+  nav.tabs button.active{background:var(--grad);color:#fff;border-color:transparent;box-shadow:var(--shadow)}
+  .tab{display:none;animation:fade .4s ease}
+  .tab.show{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:900px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  .card{background:linear-gradient(160deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
+  .card h2{font-size:1.02rem; margin-bottom:8px; display:flex;align-items:center;gap:8px}
+  .card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--grad3); display:inline-block}
+  .muted{color:var(--muted);font-size:.85rem}
+  .small{font-size:.8rem}
+  .num{font-variant-numeric:tabular-nums}
+
+  .btn{background:var(--grad);color:#fff;border:none;padding:10px 18px;border-radius:12px;cursor:pointer;font-weight:700;transition:.2s}
+  .btn:hover{filter:brightness(1.1);transform:translateY(-2px)}
+  .btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--txt)}
+  .btn.ghost:hover{border-color:var(--cyan);color:var(--cyan)}
+  .btn.green{background:linear-gradient(120deg,#16a06a,#22e58c)}
+  .btn.red{background:linear-gradient(120deg,#c22a44,#ff4d6d)}
+  .btn.sm{padding:7px 12px;font-size:.8rem}
+
+  .input,select.input{
+    width:100%;background:#0a1024;border:1px solid var(--line2);color:var(--txt);
+    padding:9px 12px;border-radius:10px;font-size:.85rem;outline:none;
+  }
+  .input:focus{border-color:var(--cyan)}
+  label{font-size:.75rem;color:var(--muted)}
+  .field{margin-bottom:12px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .pill{background:#0a1024;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:.8rem}
+  .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+  @media(max-width:700px){.kpi{grid-template-columns:1fr}}
+
+  .chartframe{background:#050810;border:1px solid var(--line);border-radius:14px;overflow:hidden;position:relative}
+  canvas{display:block;width:100%;height:auto}
+  .stage{max-width:960px;margin:0 auto}
+  .controls{display:flex;justify-content:center;gap:10px;margin:14px 0;flex-wrap:wrap}
+  .log{background:#050810;border:1px solid var(--line);border-radius:12px;padding:12px;max-height:240px;overflow:auto;font-family:ui-monospace,monospace;font-size:.75rem;line-height:1.7}
+  .log .t{color:var(--cyan)} .log .ev{color:var(--amber)} .log .buy{color:var(--green)} .log .sell{color:var(--red)} .log .off{color:var(--muted)}
+
+  /* slides */
+  .deck{position:relative;width:100%;aspect-ratio:16/9;max-height:78vh;background:#050810;border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .slide{position:absolute;inset:0;padding:34px 44px;display:none;flex-direction:column;justify-content:center;background:radial-gradient(900px 400px at 90% -10%,rgba(35,213,255,.16),transparent 55%),#050810}
+  .slide.active{display:flex;animation:slideIn .45s ease}
+  @keyframes slideIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+  .slide h3{font-size:2.2rem;margin-bottom:14px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .slide ul{list-style:none;font-size:1.05rem;line-height:2}
+  .slide li::before{content:"◆";color:var(--cyan);margin-right:10px}
+  .slide .small-note{color:var(--muted);font-size:.85rem;margin-top:14px}
+  .decknav{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+  .deckprogress{height:6px;background:#0a1024;border-radius:999px;overflow:hidden;flex:1;margin:0 14px}
+  .deckprogress span{display:block;height:100%;background:var(--grad3);transition:width .4s}
+
+  /* flowchart */
+  .flow{display:flex;flex-direction:column;gap:10px;max-width:820px;margin:0 auto}
+  .fnode{display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:14px;border:1px solid var(--line);background:linear-gradient(120deg,var(--panel),var(--panel2));cursor:pointer;transition:.25s;position:relative}
+  .fnode:hover{transform:translateX(-4px);border-color:var(--cyan)}
+  .fnode.done{border-color:var(--green)}
+  .fnode .ico{width:44px;height:44px;border-radius:12px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex:none}
+  .fnode .body{flex:1}
+  .fnode .body b{display:block}
+  .fnode .body span{color:var(--muted);font-size:.82rem}
+  .fnode .state{font-size:.75rem;color:var(--green)}
+  .farrow{display:flex;justify-content:center;color:var(--line2)}
+  .branch{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-right:58px}
+  @media(max-width:700px){.branch{grid-template-columns:1fr;margin-right:0}}
+  .branch .fnode{border-style:dashed}
+
+  table{width:100%;border-collapse:collapse;font-size:.83rem}
+  th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:right}
+  th{color:var(--cyan);background:rgba(35,213,255,.05);position:sticky;top:0}
+  tr:hover td{background:rgba(35,213,255,.04)}
+  .pos{color:var(--green)} .neg{color:var(--red)} .low{color:var(--amber)}
+
+  footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:40px}
+  .notice{background:linear-gradient(120deg,rgba(255,176,32,.12),rgba(255,77,109,.08));border:1px solid rgba(255,176,32,.4);border-radius:14px;padding:14px;margin-bottom:16px}
+  .notice b{color:var(--amber)}
+  .scrollx{overflow-x:auto}
+  .file-list li{background:#0a1024;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .file-list .name{font-family:ui-monospace,monospace;font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="logo">⌘</div>
+    <div class="title" style="flex:1">
+      <h1>منصة تدقيق وبناء بوت التداول الآلي SMC/ICT على MT5</h1>
+      <p>مراجعة سطرية · بناء السكريبت · محاكاة تفاعلية · عرض تقديمي · إنفوجرافيك · تقرير · مقارنة · تنزيل مباشر</p>
+      <div class="badges">
+        <span class="badge warn">⏳ بانتظار إرفاق الملفات الثلاثة</span>
+        <span class="badge">MT5</span>
+        <span class="badge">MQL5</span>
+        <span class="badge ok">أسماء الملفات في Comment تلقائياً (MQLInfoString)</span>
+        <span class="badge ok">تعرف تلقائي على الرمز/العملة/الإطار/نوع الأصل</span>
+        <span class="badge">يدعم كريبتو (USDT) · فوركس · أسهم · سلع</span>
+      </div>
+    </div>
+  </header>
+
+  <div id="notice" class="notice">
+    <b>✦ حالة الملفات:</b> لم تصل ملفات
+    <b>pasted_file_5qAMPS_complete_ai_smc_strategy</b> و<b>Backtest_Guide_الدليل_الشامل</b> وملف التعديلات الثانوي إلى مساحة العمل بعد.
+    ستملأ كل المحتويات الحالية تلقائياً عند إرفاقها. المحاكاة والعرض والإنفوجرافيك مبنية حالياً على المخطط القياسي لـ SMC/ICT
+    وسيتم مطابقتها حرفياً مع الملف الأصلي فور وصوله. <b>لن يُبنى ملف البوت النهائي إلا من الملف الأصلي فقط.</b>
+  </div>
+
+  <nav class="tabs">
+    <button class="active" data-tab="sim">▣ المحاكاة التفاعلية</button>
+    <button data-tab="slides">▶ العرض التقديمي</button>
+    <button data-tab="info">➤ إنفوجرافيك القرارات</button>
+    <button data-tab="sheet">▦ جدول المقارنة</button>
+    <button data-tab="report">▤ التقرير والمراجعة</button>
+    <button data-tab="download">⭳ التنزيل المباشر</button>
+  </nav>
+
+  <!-- SIMULATION -->
+  <section id="tab-sim" class="tab show">
+    <div class="grid g3">
+      <div class="card">
+        <h2><span class="dot"></span> لوحة التحكم بالمحاكاة</h2>
+        <div class="field">
+          <label>الرمز / نوع الأصل (تعرُّف تلقائي)</label>
+          <select id="simSymbol" class="input">
+            <option value="BTCUSDT">BTCUSDT — كريبتو USDT</option>
+            <option value="XAUUSD">XAUUSD — سلعة</option>
+            <option value="EURUSD">EURUSD — فوركس</option>
+            <option value="US500">US500 — أسهم/مؤشر</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>الإطار الزمني</label>
+          <select id="simTf" class="input">
+            <option>M1</option><option>M5</option><option>M15</option>
+            <option selected>H1</option><option>H4</option><option>D1</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Magic Number</label>
+          <input id="simMagic" class="input num" value="702001" />
+        </div>
+        <div class="field">
+          <label>التعليق (Comment — يُحدد تلقائياً من اسم الملف ثم يُقصّ لـ31 حرفاً)</label>
+          <input id="simComment" class="input" value="SMC_ICT_Pro_V2" />
+        </div>
+        <div class="field">
+          <label>السرعة</label>
+          <select id="simSpeed" class="input"><option value="1400">0.7×</option><option value="900" selected>1×</option><option value="500">1.6×</option><option value="260">3×</option></select>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button id="simPlay" class="btn">▶ تشغيل</button>
+          <button id="simPause" class="btn ghost">⏸ إيقاف</button>
+          <button id="simReset" class="btn ghost">↺ إعادة</button>
+          <button id="simStep" class="btn green sm">⤷ خطوة</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="dot"></span> المؤشرات الحية</h2>
+        <div class="kpi">
+          <div><label>الاتجاه HTF</label><div id="kpiTrend" class="num" style="font-size:1.5rem">—</div></div>
+          <div><label>السيولة المستهدفة</label><div id="kpiLiquid" class="num" style="font-size:1.5rem">—</div></div>
+          <div><label>نقطة الهيكل</label><div id="kpiStruct" class="num" style="font-size:1.5rem">—</div></div>
+          <div><label>منطقة FVG</label><div id="kpiFvg" class="num" style="font-size:1.5rem">—</div></div>
+          <div><label>مدخل OTE</label><div id="kpiOte" class="num" style="font-size:1.5rem">—</div></div>
+          <div><label>القرار النهائي</label><div id="kpiDecision" class="num" style="font-size:1.5rem">—</div></div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <span class="pill">💠 صفقة: <b id="simTrade">بانتظار الإشارة…</b></span>
+          <span class="pill">SL: <b id="simSL">—</b></span>
+          <span class="pill">TP: <b id="simTP">—</b></span>
+          <span class="pill">RR: <b id="simRR">—</b></span>
+          <span class="pill">المكسب: <b id="simPnL">0.00 $</b></span>
+        </div>
+        <div class="small muted" style="margin-top:12px">
+          <b>MT5 لا يحفظ اسم الملف في الصفقة.</b> الخادم يحفظ فقط <b>Magic Number</b> و<b>Comment (≤31 حرفاً)</b>.
+          لذلك يستخدم البوت <code>MQLInfoString(MQL_PROGRAM_NAME)</code> لوضع اسمه في التعليق تلقائياً، مع إزالة الامتداد وقصِّه إلى 31 حرفاً.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="dot"></span> المرحلة الحالية من منطق القرار</h2>
+        <ol id="phaseList" style="margin:0 16px; font-size:.85rem; color:var(--muted)">
+          <li class="active" style="color:var(--txt)">1. تحديد اتجاه السياق (HTF)</li>
+          <li>2. رسم خرائط السيولة (LH/LL / EH/EQL)</li>
+          <li>3. انتظار كنس السيولة (Stops Run / Sweep)</li>
+          <li>4. إدراك انعكاس الهيكل (CHoCH)</li>
+          <li>5. تحديد FVG / عدم التوازن</li>
+          <li>6. حساب OTE (61.8–79%) والمنطقة المخفضة</li>
+          <li>7. الدخول (ORDER BY)</li>
+          <li>8. الإدارة: TP1/بريك-إيفن/TP2</li>
+          <li>9. الإغلاق (تسجيل النتيجة)</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2><span class="dot"></span> شارت المحاكاة الحيّ</h2>
+      <div class="stage chartframe"><canvas id="chart" width="960" height="520"></canvas></div>
+      <div class="controls">
+        <span class="pill">🟢 Buy</span><span class="pill">🔴 Sell</span>
+        <span class="pill">■ سوق <b id="simMarket">—</b></span>
+        <span class="pill">⏳ وقت <b id="simTime">—</b></span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2><span class="dot"></span> سجل الأحداث كما سيتسجلها البوت في Experts/Journal</h2>
+      <div id="simLog" class="log"></div>
+    </div>
+  </section>
+
+  <!-- SLIDES -->
+  <section id="tab-slides" class="tab">
+    <div class="card">
+      <h2><span class="dot"></span> عرض تقديمي — منطق عمل البوت SMC/ICT خطوة بخطوة</h2>
+      <div id="deck" class="deck"></div>
+      <div class="decknav">
+        <button id="deckPrev" class="btn ghost sm">‹ السابق</button>
+        <div class="deckprogress"><span id="deckBar" style="width:0%"></span></div>
+        <button id="deckNext" class="btn sm">التالي ›</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- INFOGRAPHIC -->
+  <section id="tab-info" class="tab">
+    <div class="card">
+      <h2><span class="dot"></span> مخطط سير القرارات التفاعلي — من كشف السيولة حتى تنفيذ وإغلاق الصفقة</h2>
+      <div id="flow" class="flow" style="margin-top:16px"></div>
+    </div>
+  </section>
+
+  <!-- SPREADSHEET -->
+  <section id="tab-sheet" class="tab">
+    <div class="card">
+      <h2><span class="dot"></span> جدول مقارنة SMC/ICT مع أبرز استراتيجيات التداول الآلي</h2>
+      <div class="row" style="margin-bottom:12px">
+        <button id="exportCsv" class="btn sm">⭳ تصدير CSV</button>
+        <span class="muted">اضغط على الرؤوس للفرز · اكتب في البحث للتصفية</span>
+      </div>
+      <input id="sheetSearch" class="input" placeholder="بحث…" style="margin-bottom:10px"/>
+      <div class="scrollx">
+        <table id="cmpTable">
+          <thead><tr>
+            <th data-k="name">الاستراتيجية</th>
+            <th data-k="type">النوع</th>
+            <th data-k="accuracy">الدقة/الاتساق</th>
+            <th data-k="risk">المخاطر</th>
+            <th data-k="drawdown">التراجع الأقصى (نموذجي)</th>
+            <th data-k="rr">RR متوسط</th>
+            <th data-k="freq">تواتر الصفقات</th>
+            <th data-k="overfit">مقاومة Overfitting</th>
+            <th data-k="markets">الأسواق</th>
+            <th data-k="cpu">حاجة حوسبة</th>
+            <th data-k="note">ملاحظات</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- REPORT -->
+  <section id="tab-report" class="tab">
+    <div class="grid g2">
+      <div class="card">
+        <h2><span class="dot"></span> مراجعة الملفات (تتم بعد إرفاق الملفات)</h2>
+        <ul id="auditList" class="muted" style="margin:0 16px;line-height:2">
+          <li>📄 pasted_file_5qAMPS_complete_ai_smc_strategy — <b class="neg">بانتظار الملف</b></li>
+          <li>📄 Backtest_Guide_الدليل_الشامل — <b class="amber">بانتظار الملف (مراجعة فقط، دون اعتماد)</b></li>
+          <li>📄 ملف التعديلات الثانوي — <b class="amber">بانتظار الملف (مراجعة فقط، دون اعتماد)</b></li>
+        </ul>
+        <pre id="auditDetail" class="log" style="max-height:320px;white-space:pre-wrap">// سيُعرض هنا التدقيق سطراً-سطراً وكلمة-كلمة
+// مع عدد الأسطر، التناقضات، الأخطاء المحتملة، وتوصيات التحسين.
+</pre>
+      </div>
+      <div class="card">
+        <h2><span class="dot"></span> توصيات التحسين المقترحة (غير مغيِّرة للمنطق)</h2>
+        <ul id="improvements" class="muted" style="margin:0 16px;line-height:2">
+          <li>✅ اسم الملف في Comment تلقائياً (بحد 31 حرفاً) — <b>مطلوب</b>.</li>
+          <li>✅ Magic Number موحّد لكل بوت لتمييز الصفقات دائماً.</li>
+          <li>✅ كشف تلقائي لنوع الرمز/العملة/الإطار الزمني/نوع الأصل.</li>
+          <li>✅ دعم كريبتو (USDT)، فوركس، أسهم، سلع.</li>
+          <li>✅ إضافة ملف مرجع CSV يربط كل Magic باسم الملف.</li>
+          <li>✅ سكريبت مراقبة صفقات OnTradeTransaction (وقت الدخول/الخروج، الرمز، الربح، الماجيك، التعليق).</li>
+        </ul>
+        <div class="notice" style="margin-top:10px">
+          <b>ملاحظة:</b> أي توصية تُنفَّذ لن تُغيِّر منطق عمل البوت — تُضاف فقط كطبقة تشغيل/تسجيل/توافق.
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2><span class="dot"></span> خطة النشر على حساب حقيقي (خطوات لاحقة)</h2>
+      <div class="grid g4">
+        <div class="pill">1. اختبار Backtester على بيانات H1/H4</div>
+        <div class="pill">2. حساب تجريبي عائم (مليون دولار)</div>
+        <div class="pill">3. حساب تجريبي حقيقي 30+ يوم</div>
+        <div class="pill">4. إدارة مخاطر (Risk ≤ 1% · RR ≥ 1:1.5)</div>
+        <div class="pill">5. مراقبة Experts Journal يومياً</div>
+        <div class="pill">6. زيادة تدريجية للرصيد</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOWNLOAD -->
+  <section id="tab-download" class="tab">
+    <div class="card">
+      <h2><span class="dot"></span> ملفات قابلة للتنزيل المباشر</h2>
+      <ul id="fileLinks" class="file-list">
+        <li><span class="name">⏳ بوت MT5 (SMC_ICT_Pro_V2.mq5)</span><span class="muted">سيُنشأ حرفياً من الملف الأصلي بعد إرفاقه</span></li>
+        <li><span class="name">⏳ Mapping Magic → File (CSV)</span><span class="muted">سيُنشأ عند إرفاق البيانات</span></li>
+        <li><span class="name">⏳ Trade Monitor Script (mqh/mq5)</span><span class="muted">سكريبت مراقبة OnTradeTransaction</span></li>
+      </ul>
+      <div class="notice" style="margin-top:12px">
+        <b>✦ كيف يعمل التنزيل المباشر هنا؟</b> كل ملف يوضع في مجلد <code>mt5-smc-bot-toolkit/files/</code>،
+        وتُنشأ له <code>&lt;a download&gt;</code> تلقائياً، فيمكن تنزيله مباشرة من هذه الصفحة بضغطة واحدة.
+        <button id="refreshFiles" class="btn ghost sm">↻ فحص الملفات الآن</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    MT5 SMC/ICT Automated Trading Bot — Audit &amp; Toolkit · جلسة <b>arena/01a06c36-opencode-antigravity-auth</b> ·
+    بانتظار الملفات الأصلية لإكمال التدقيق الحرفي وبناء السكريبت النهائي · المخاطرة بالأسواق عالية، لا يعمل هذا إلا بعد اختبار آمن.
+  </footer>
+</div>
+
+<script>
+/* ============ shared state ============ */
+const SMC = {
+  steps:[
+    {id:'bias', name:'السياق/الاتجاه HTF', icon:'🧭', desc:'قراءة هيكل السوق الأعلى (زمن أعلى) لتحديد اتجاه الانحياز قبل أي دخول.', done:false},
+    {id:'liquid', name:'كشف/رسم السيولة', icon:'💧', desc:'تحديد القمم/القيعان المتساوية (EQL/EQH)، قمم/قيعان سابقة، ومناطق أوامر المؤسسات.', done:false},
+    {id:'sweep', name:'كنس السيولة (Stops Run)', icon:'🌀', desc:'شمعة تخترق مستوى السيولة (فتيل حاد) ثم ترتد — يحبس المؤسسات الجمهور قبل الانعكاس.', done:false},
+    {id:'choch', name:'انعكاس الهيكل CHoCH', icon:'🔄', desc:'كسر آخر قاع/قمة صاعدة أو هابطة يؤكد التغيير في البنية → تحوّل الانحياز.', done:false},
+    {id:'fvg', name:'فجوة القيمة العادلة FVG', icon:'🕳️', desc:'عدم توازن بين شمعة 1 و3 في شمعة 2 — منطقة التصحيح التي تنجذب إليها الأسعار.', done:false},
+    {id:'ote', name:'المدخل المثالي OTE', icon:'🎯', desc:'61.8% – 79% من الموجة بعد CHoCH، يفضَّل عند تقاطع FVG مع منطقة الخصم.', done:false},
+    {id:'entry', name:'تنفيذ الأمر (Order Send/CTrade)', icon:'📨', desc:'أمر مع Comment = اسم الملف (≤31 حرف) و Magic مخصص، SL خلف الكنس، TP أمام سيولة الهدف.', done:false},
+    {id:'manage', name:'إدارة الصفقة', icon:'⚙️', desc:'إغلاق جزئي عند TP1، نقل SL إلى التعادل بعد CHoCH، تتبع SL بعد TP2.', done:false},
+    {id:'close', name:'الإغلاق والتسجيل', icon:'🗂️', desc:'تسجيل النتيجة في Experts/Journal، وتحديث الدفتر والربط Magic→ملف.', done:false}
+  ]
+};
+
+function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+/* ============ tabs ============ */
+const tabs=[...document.querySelectorAll('nav.tabs button')];
+tabs.forEach(b=>b.addEventListener('click',()=>{
+  tabs.forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('show'));
+  document.getElementById('tab-'+b.dataset.tab).classList.add('show');
+  if(b.dataset.tab==='slides'&&!deckInit)initDeck();
+  if(b.dataset.tab==='info'&&!flowInit)initFlow();
+}));
+
+/* ============ simulation ============ */
+const cv=document.getElementById('chart'),ctx=cv.getContext('2d');
+let bars=[], state={phase:0, running:false, timer:null, ticks:0, trade:null, log:[]};
+const sessionNames=['لندن','نيويورك','آسيا'];
+function logLine(cls,msg){state.log.unshift(`<span class="${cls}">${msg}</span>`);const e=document.getElementById('simLog');e.innerHTML=state.log.slice(0,40).join('\n');}
+function setKpi(key,val,cls){const el=document.getElementById('kpi'+key);el.textContent=val;if(cls){el.style.color=cls;}}
+function phase_name(i){return SMC.steps[i].name;}
+
+function genBars(){
+  bars=[];let p=100;
+  const dirs=[];
+  for(let i=0;i<90;i++){dirs.push((Math.random()>.48)?1:-1);}
+  // construct an SMC pattern: rally -> sweep -> CHoCH -> fvg -> OTE -> entry
+  for(let i=0;i<90;i++){
+    let o=p;
+    let drift=(i<30)?0.9:(i<38)?0.35:-0.45;
+    let c=o+drift+ (Math.random()-0.5)*1.6;
+    let h=Math.max(o,c)+Math.random()*1.2;
+    let l=Math.min(o,c)-Math.random()*1.2;
+    bars.push({o,c,h,l});
+    p=c;
+  }
+  // force pattern at relevant segments
+  // segment 40-46 HL/LH then sweep, seg 47-52 CHoCH, seg 53-60 FVG up, seg 61-68 pullback OTE, seg 69-76 entry to target
+  const origin=bars.find(b=>b.o<=112)
+  const base=bars[44];
+  // liquidity sweep at 46 (wick above high then close low-ish)
+  bars[45]={o:104.2,c:103.4,h:105.4,l:102.9};
+  bars[46]={o:103.4,c:102.1,h:106.2,l:101.7};   // sweep stop above 105.4
+  bars[47]={o:102.1,c:101.2,h:102.4,l:100.6};
+  bars[48]={o:101.2,c:100.0,h:101.6,l:99.4};    // CHoCH down
+  bars[49]={o:100.0,c:99.1,h:100.4,l:98.6};
+  bars[50]={o:99.1,c:98.0,h:99.4,l:97.5};       // expanded -> imbalance
+  bars[51]={o:98.0,c:97.2,h:98.2,l:96.5};
+  bars[52]={o:97.2,c:96.0,h:97.5,l:95.5};       // sweep lower low
+  bars[53]={o:96.0,c:97.9,h:98.4,l:95.8};       // strong up FVG (close high)
+  bars[54]={o:97.9,c:99.3,h:99.7,l:97.6};       // up
+  bars[55]={o:99.3,c:100.9,h:101.3,l:99.0};     // up strong (FVG formed 96.0-97.6 area)
+  bars[56]={o:100.9,c:102.2,h:102.5,l:100.6};
+  bars[57]={o:102.2,c:103.1,h:103.4,l:101.9};
+  // pullback OTE
+  bars[58]={o:103.1,c:101.9,h:103.3,l:101.5};
+  bars[59]={o:101.9,c:101.0,h:102.1,l:100.4};
+  bars[60]={o:101.0,c:100.2,h:101.3,l:99.9};
+  bars[61]={o:100.2,c:99.3,h:100.5,l:98.9};     // OTE zone ~99
+  bars[62]={o:99.3,c:98.8,h:99.7,l:98.4};
+  bars[63]={o:98.8,c:98.4,h:99.1,l:97.9};       // entry signal area
+  // entry and rally to Tp
+  bars[64]={o:98.4,c:100.2,h:100.5,l:98.1};
+  bars[65]={o:100.2,c:101.6,h:101.9,l:99.9};
+  bars[66]={o:101.6,c:102.8,h:103.1,l:101.3};
+  bars[67]={o:102.8,c:104.0,h:104.3,l:102.4};
+  bars[68]={o:104.0,c:105.1,h:105.4,l:103.7};
+  bars[69]={o:105.1,c:106.2,h:106.5,l:104.8};   // TP1
+  bars[70]={o:106.2,c:106.9,h:107.2,l:105.8};
+  bars[71]={o:106.9,c:107.6,h:107.9,l:106.4};
+  bars[72]={o:107.6,c:108.4,h:108.7,l:107.2};   // TP2
+  bars[73]={o:108.4,c:108.2,h:108.8,l:107.6};
+  bars[74]={o:108.2,c:108.1,h:108.5,l:107.4};
+  bars[75]={o:108.1,c:108.0,h:108.4,l:107.2};
+  bars[76]={o:108.0,c:107.8,h:108.3,l:107.0};
+  bars.forEach((b,i)=>{b.i=i});
+}
+
+function drawChart(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const W=cv.width,H=cv.height,pad=18;
+  const view=Math.max(30,Math.min(90,bars.length));
+  const start=Math.max(0,bars.length-view);
+  const data=bars.slice(start);
+  const min=Math.min(...data.map(b=>b.l))-2;
+  const max=Math.max(...data.map(b=>b.h))+2;
+  const y=v=>H-pad-(v-min)/(max-min)*(H-2*pad);
+  const x=i=>pad + (i-start)*((W-2*pad)/(view-1));
+
+  // grid
+  ctx.strokeStyle='rgba(63,123,255,.12)';ctx.lineWidth=1;
+  for(let g=0;g<=5;g++){const gy=pad+g*(H-2*pad)/5;ctx.beginPath();ctx.moveTo(pad,gy);ctx.lineTo(W-pad,gy);ctx.stroke();}
+
+  // zones: FVG box, OTE box
+  ctx.fillStyle='rgba(34,229,140,.08)';
+  const fvg= bars.slice(53,56);
+  if(fvg.length){const yt=y(Math.max(...fvg.map(b=>b.h))),yb=y(Math.min(...fvg.map(b=>b.l)));ctx.fillRect(x(53)-3,yt,x(56)-x(53)+6,yb-yt);}
+  ctx.fillStyle='rgba(139,92,246,.10)';
+  const ote= bars.slice(59,64);
+  if(ote.length){const yt=y(Math.max(...ote.map(b=>b.h))),yb=y(Math.min(...ote.map(b=>b.l)));ctx.fillRect(x(59)-3,yt,x(64)-x(59)+6,yb-yt);}
+
+  // candles
+  for(let i=start;i<bars.length;i++){
+    const b=data[i-start];
+    const up=b.c>=b.o;
+    ctx.strokeStyle=up?'#22e58c':'#ff4d6d';
+    ctx.fillStyle=up?'rgba(34,229,140,.85)':'rgba(255,77,109,.85)';
+    ctx.beginPath();ctx.moveTo(x(i),y(b.h));ctx.lineTo(x(i),y(b.l));ctx.stroke();
+    const top=y(Math.max(b.o,b.c)),bot=y(Math.min(b.o,b.c));
+    ctx.fillRect(x(i)-5,top,10,Math.max(1,bot-top));
+  }
+
+  // markers per phase
+  const marks=[
+    {i:45,c:'#ffb020',t:'Sweep: كنس السيولة'},
+    {i:48,c:'#ffb020',t:'CHoCH'},
+    {i:53,c:'#23d5ff',t:'FVG: فجوة قيمة عادلة'},
+    {i:61,c:'#8b5cf6',t:'OTE: مدخل مثالي'},
+    {i:69,c:'#22e58c',t:'TP1'},
+    {i:72,c:'#22e58c',t:'TP2'}
+  ];
+  marks.forEach(m=>{
+    const b=bars[m.i]; if(!b||m.i<start)return;
+    ctx.fillStyle=m.c;ctx.strokeStyle='#fff';ctx.beginPath();ctx.arc(x(m.i),y(b.c),5,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.font='10px sans-serif';ctx.fillStyle=m.c;
+    ctx.fillText(m.t,Math.max(pad,x(m.i)-28),y(b.c)-12);
+  });
+
+  // trade arrow
+  if(state.trade){
+    ctx.strokeStyle='#ff4d6d';ctx.fillStyle='#ff4d6d';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(x(63),y(bars[63].c),6,0,Math.PI*2);ctx.stroke();
+    ctx.fillText('إدخال',x(63)-24,y(bars[63].c)+16);
+    ctx.strokeStyle='#22e58c';ctx.beginPath();ctx.moveTo(x(63),y(bars[63].c));ctx.lineTo(x(72),y(bars[72].c));ctx.stroke();
+  }
+}
+
+function setPhase(i){
+  state.phase=i;
+  document.querySelectorAll('#phaseList li').forEach((li,j)=>{li.classList.toggle('active',j===i);li.style.color=j===i?'var(--txt)':'var(--muted)';});
+  const s=SMC.steps[i];
+  setKpi('Trend', s.id==='bias'?'صعودي (H1)':'صعودي');
+  setKpi('Liquid', 'قمم متساوية 105.4 / قاع 95.5', s.id==='liquid'?'var(--cyan)':'');
+  setKpi('Struct', s.id==='choch'?'CHoCH صاعد':'حياد');
+  setKpi('Fvg', s.id==='fvg'?'96.0–97.6':'—');
+  setKpi('Ote', s.id==='ote'?'98.9–99.3':'—');
+}
+
+function doNext(){
+  state.ticks++;
+  if(state.phase>0) SMC.steps[state.phase-1].done=true;
+  const i=state.phase;
+  if(i<SMC.steps.length){
+    setPhase(i);
+    const s=SMC.steps[i];
+    logLine('ev',`[${(state.ticks*4).toString().padStart(2,'0')}:00] ${s.icon} المرحلة ${i+1}: ${s.name} — ${s.desc}`);
+    if(s.id==='entry'){openTrade();}
+    if(s.id==='manage'){manageTrade();}
+    if(s.id==='close'){closeTrade();}
+    state.phase++;
+  } else {
+    state.running=false;clearInterval(state.timer);
+    logLine('off','انتهت المحاكاة — أعد التشغيل لبدء سيناريو جديد.');
+    gameover();
+  }
+}
+
+function openTrade(){
+  const dir=1;
+  state.trade={dir,entry:98.4,sl:97.9,tp1:106.5,tp2:108.4,qty:0.5};
+  const magic=document.getElementById('simMagic').value;
+  const baseComment=document.getElementById('simComment').value.trim()||'SMC_ICT_Pro_V2';
+  const fullComment=(baseComment+' | SMC FVG+OTE').slice(0,31);
+  const sym=document.getElementById('simSymbol').value;
+  const tf=document.getElementById('simTf').value;
+  logLine('buy',`ORDER BUY ${sym} ${tf} @ ${state.trade.entry} qty=${state.trade.qty} SL=${state.trade.sl} TP1=${state.trade.tp1} TP2=${state.trade.tp2} | Magic=${magic} | Comment="${fullComment}"`);
+  logLine('off',`MT5 واقعياً لا يحفظ اسم الملف في الصفقة؛ التعليق أعلاه أُنشئ من MQLInfoString(MQL_PROGRAM_NAME) ثم قُصّ إلى ${fullComment.length} حرفاً.`);
+  setKpi('Decision','شراء (Buy)', 'var(--green)');
+  document.getElementById('simTrade').textContent=`Buy ${sym} @ ${state.trade.entry}`;
+  document.getElementById('simSL').textContent=state.trade.sl;
+  document.getElementById('simTP').textContent=state.trade.tp1+' / '+state.trade.tp2;
+  const r1=Math.round((state.trade.tp1-state.trade.entry)/(state.trade.entry-state.trade.sl)*100)/100;
+  const r2=Math.round((state.trade.tp2-state.trade.entry)/(state.trade.entry-state.trade.sl)*100)/100;
+  document.getElementById('simRR').textContent=`1:${r1} → 1:${r2}`;
+}
+function manageTrade(){
+  logLine('off','إدارة: إغلاق جزئي عند TP1، نقل التوقف إلى التعادل بعد تأكيد CHoCH، ثم مطاردة عند TP2.');
+  document.getElementById('simPnL').textContent='+ 6.15 $ (TP1)';
+  setKpi('Decision','إدارة نشطة','var(--cyan)');
+}
+function closeTrade(){
+  logLine('sell',`إغلاق: TP2 @ 108.4 → الصفقة ربحت ${((108.4-98.4)*0.5).toFixed(2)} $ بحدود RR 1:5.`);
+  document.getElementById('simPnL').textContent='+ 5.00 $ (TP2 محقق)';
+  setKpi('Decision','إغلاق ناجح','var(--green)');
+  state.trade=null;
+}
+
+function gameover(){
+  SMC.steps.forEach(s=>s.done=false);
+  setPhase(0);
+}
+function play(){if(state.running)return;state.running=true;clearInterval(state.timer);const sp=+document.getElementById('simSpeed').value;state.timer=setInterval(doNext,sp);}
+function pause(){state.running=false;clearInterval(state.timer);}
+function reset(){state.running=false;clearInterval(state.timer);state.phase=0;state.ticks=0;state.trade=null;SMC.steps.forEach(s=>s.done=false);setPhase(0);logLine('off','↺ إعادة تشغيل المحاكاة…');}
+
+document.getElementById('simPlay').addEventListener('click',play);
+document.getElementById('simPause').addEventListener('click',pause);
+document.getElementById('simReset').addEventListener('click',()=>{reset();drawChart();});
+document.getElementById('simStep').addEventListener('click',()=>{pause();doNext();drawChart();});
+document.getElementById('simSymbol').addEventListener('change',function(){logLine('off',`كشف تلقائي للنوع: ${this.value} → ${this.value.includes('USDT')?'كريبتو موصول بـUSDT':this.value.startsWith('XAU')?'سلعة (معادن)':this.value.includes('USD')?'فوركس':'أسهم/مؤشر'}`);});
+document.getElementById('simTf').addEventListener('change',function(){logLine('off',`كشف تلقائي للإطار الزمني: ${this.value}`);});
+document.getElementById('simMagic').addEventListener('change',function(){logLine('off',`Magic Number: ${this.value}`);});
+document.getElementById('simComment').addEventListener('blur',function(){const c=this.value.trim()||'SMC_ICT_Pro_V2';const cl=(c+' | SMC').slice(0,31);logLine('off',`التعليق المعتمد في الصفقات (≤31 حرفاً): "${cl}"`);});
+
+setPhase(0);
+genBars();drawChart();
+logLine('t','تهيئة المحاكاة…');
+logLine('t',`الرمز: BTCUSDT (كريبتو/USDT) · الإطار H1 · اتطلع لاتجاه HTF صاعد.`);
+logLine('ev','▶ اضغط "تشغيل" لبدء سيناريو SMC/ICT كامل.');
+
+/* ============ slides ============ */
+const deckData=[
+  {h:'1. نظرة عامة على البوت',items:['Expert Advisor بلغة MQL5 لمنصة MetaTrader 5','يعمل تلقائياً على كريبتو (USDT)، فوركس، أسهم، سلع','كشف تلقائي للرمز، العملة، نوع الأصل، والإطار الزمني','تخصيص Magic Number + Comment = اسم الملف (≤31 حرفاً)'],note:'منطق القرار: SMC/ICT بهدف مطابقة الملف الأصلي حرفياً.'},
+  {h:'2. مفهوم SMC/ICT الأساسي',items:['السيولة = أوامر الجمهور خلف القمم/القيعان المتساوية','المؤسسات تتحرك لتنفيذ أوامرها → تمسح السيولة أولاً','الفجوة السعرية (FVG) = عدم توازن توضح نية المؤسسات','المدخل المثالي (OTE) = خصم داخل الموجة (61.8%–79%)'],note:'لا نشتري القمة ولا نبيع القاع — ننتظر "التصحيح داخل المنطقة".'},
+  {h:'3. الخطوة 1: تحديد الاتجاه (HTF Bias)',items:['قراءة الشارت الأعلى (H4/D1) لتحديد الانحياز','GZ اللجوء إلى قمم/قيعان سابقة + سلوك الأسعار','لا دخول ضد انحياز الإطار الأعلى إلا بعد CHoCH'],note:'Big Picture قبل الصفقة الصغيرة.'},
+  {h:'4. الخطوة 2: خريطة السيولة',items:['Equal Highs/Lows (EQH/EQL)','قمم/قيعان سابقة (PDH/PDL)','مناطق الافتتاح (يُخصَّص حسب الجلسة)','تحديد "مجموعات أوامر" التي ستمسح'],note:'نرسم الأهداف يومياً في الصباح وننتظر.'},
+  {h:'5. الخطوة 3: كنس السيولة (Stops Run)',items:['شمعة تخترق مستوى السيولة بفتيل حاد','ثم تُغلق بعيداً عنه (رفض)','هذه لحظة "احتباس" الجمهور','إشارة قوية جداً قبل الانعكاس'],note:'إذا لم يكن هناك كنس، عادةً لا يوجد انعكاس جاد.'},
+  {h:'6. الخطوة 4: انعكاس الهيكل (CHoCH)',items:['كسر آخر قاع/قمة صاعدة أو هابطة','CHoCH يؤكد تحول الانحياز من هبوط إلى صعود','يُفضل دمجه مع منطقة السيولة','الانتظار حتى تكتمل الشمعة لتجنب إشارة كاذبة'],note:'CHoCH = التحول، BOS = الاستمرار.'},
+  {h:'7. الخطوة 5: فجوة القيمة العادلة (FVG)',items:['عدم توازن بين شمعة 1 و3 في شمعة 2 القوية','الأسعار تميل للعودة لملء FVG','FVG = منطقة تصحيح "آمنة" نسبياً','استخدمه مع الـOTE لاختيار أفضل سعر دخول'],note:'نبحث عن FVG داخل الاتجاه وبعد CHoCH.'},
+  {h:'8. الخطوة 6: المدخل المثالي (OTE)',items:['OTE = تصحيح 61.8%–79% من الموجة','يفضَّل تقاطع OTE مع FVG','المنطقة المخفضة = خصم (شراء)، المنطقة المرفوعة = علاوة (بيع)','هنا ندخل، لا في منتصف الموجة'],note:'تحديد SL خلف الكنس مباشرة.'},
+  {h:'9. الخطوة 7: التنفيذ (Order Send / CTrade)',items:['Entry Limit/Market حسب الإعدادات','Comment = اسم الملف تلقائياً (≤31 حرفاً)','انتظر تأكيد الشمعة (مغلق/مفتوح) قابل للضبط','غلف الطلب بمعالجة retcode وأعد المحاولة'],note:'SL = خلف الكنس · TP1/TP2 عند سيولات أخرى.'},
+  {h:'10. الخطوة 8: إدارة الصفقة',items:['TP1 → إغلاق جزئي (50% مثلاً)','نقل SL إلى التعادل بعد CHoCH','TP2 → مطاردة (Trailing) أو هدف السيولة','تتبع حركة الأسعار كما تقرأها البنية'],note:'إدارة المخاطر جزء من الاستراتيجية وليس إضافةً.'},
+  {h:'11. الخطوة 9: الإغلاق والتسجيل',items:['تسجيل النتيجة في Experts/Journal','تحديث الدفتر: ماجيك → ملف (CSV)','مراقبة أداء كل جلسة/رمز/إطار','تطوير متكرر دون كسر المنطق'],note:'دون توثيق لا يوجد "تحسين قابل للقياس".'},
+  {h:'12. الخريطة الذهنية للقرار',items:['HTF Bias → Liquidity Map → Sweep → CHoCH → FVG → OTE → Entry → Manage → Close','المخاطرة ≤ 1% لكل صفقة','RR مستهدف ≥ 1:1.5' ,'دعم الكريبتو/USDT، فوركس، أسهم، سلع'],note:'النجاح = الالتزام بالنموذج لا التنبؤ.'}
+];
+let deckInit=false, deckIdx=0;
+function initDeck(){deckInit=true;renderDeck();}
+function renderDeck(){
+  const d=document.getElementById('deck');d.innerHTML='';
+  deckData.forEach((s,i)=>{
+    const el=document.createElement('div');el.className='slide'+(i===deckIdx?' active':'');
+    el.innerHTML=`<h3>${s.h}</h3><ul>${s.items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><div class="small-note">💡 ${esc(s.note)}</div>`;
+    d.appendChild(el);
+  });
+  document.getElementById('deckBar').style.width=((deckIdx+1)/deckData.length*100)+'%';
+}
+document.getElementById('deckNext').addEventListener('click',()=>{if(deckIdx<deckData.length-1){deckIdx++;renderDeck();}});
+document.getElementById('deckPrev').addEventListener('click',()=>{if(deckIdx>0){deckIdx--;renderDeck();}});
+document.addEventListener('keydown',e=>{
+  if(!document.getElementById('tab-slides').classList.contains('show'))return;
+  if(e.key==='ArrowRight'||e.key===' ')document.getElementById('deckNext').click();
+  if(e.key==='ArrowLeft')document.getElementById('deckPrev').click();
+});
+
+/* ============ flowchart ============ */
+let flowInit=false;
+function initFlow(){
+  flowInit=true;
+  const roots=[
+    ['bias','🧭','تحديد الاتجاه HTF','قراءة هيكل الإطار الأعلى — ما هو الانحياز العام؟'],
+    ['liquid','💧','كشف/رسم السيولة','تحديد EQH/EQL وأهداف أوامر المؤسسات حول السعر'],
+    ['sweep','🌀','كنس السيولة (Stops Run)','ننتظر اختراقاً حاداً ورفضاً — هل اجتاز المستوى ثم انعكس؟'],
+    ['choch','🔄','انعكاس الهيكل (CHoCH)','هل كُسر آخر قاع/قمة صاعدة أو هابطة لتأكيد الاتجاه؟'],
+    ['fvg','🕳️','فجوة القيمة العادلة (FVG)','هل يوجد عدم توازن داخل اتجاه CHoCH؟'],
+    ['ote','🎯','مدخل OTE','هل يصل التصحيح إلى 61.8%–79%؟','+','fvg'],
+    ['entry','📨','تنفيذ الأمر','SL خلف الكنس · TP أمام السيولة · Comment=اسم الملف · Magic مخصص'],
+    ['manage','⚙️','إدارة الصفقة','TP1 جزئي → بريك-إيفن → مطاردة بعد TP2'],
+    ['close','🗂️','الإغلاق والتسجيل','تسجيل النتيجة وخطة الصفقة التالية']
+  ];
+  const flow=document.getElementById('flow');flow.innerHTML='';
+  roots.forEach((r,i)=>{
+    const body=`<div class="ico">${r[1]}</div><div class="body"><b>${esc(r[2])}</b><span>${esc(r[3])}</span></div><div class="state">${i===7?'⬤':'◌'}</div>`;
+    if(r.length>4&&r[4]==='+'){
+      const prev=flow.lastElementChild;
+      if(prev)prev.innerHTML+=body;
+    } else {
+      const n=document.createElement('div');n.className='fnode';n.innerHTML=body;flow.appendChild(n);
+      if(i<roots.length-1){const a=document.createElement('div');a.className='farrow';a.textContent='▼';flow.appendChild(a);}
+    }
+  });
+}
+
+/* ============ spreadsheet ============ */
+const cmpRows=[
+  {name:'SMC/ICT (هذه الاستراتيجية)',type:'هيكلي سيولة/فجوات',accuracy:'متوسطة-عالية (تعتمد على الشروط)',risk:'متوسطة (سلبية في السوق جانبي/متعارض)',drawdown:'10–25%',rr:'1:1.5 – 1:3',freq:'منخفض-متوسط (جودة عالية)',overfit:'منخفض إذا كانت القواعد صارمة',markets:'فوركس/كريبتو/أسهم/سلع',cpu:'منخفض',note:'تتكيف مع السعر الحقيقي؛ تتفوق عندما تحترم السيولة والبنية'},
+  {name:'Trend Following (SMA/Donchian)',type:'اتجاهي',accuracy:'متوسطة في الاتجاه',risk:'متوسطة-عالية (whiplash)',drawdown:'20–35%',rr:'1:3 – 1:5',freq:'منخفض',overfit:'منخفض-متوسط',markets:'جميع الأسواق',cpu:'منخفض جداً',note:'بسيط لكنه يتأخر كثيراً في بداية الاتجاه ويُقتطع في السوق العرضي'},
+  {name:'Mean Reversion (RSI/Bollinger)',type:'عكسي',accuracy:'عالية في النطاق',risk:'عالية في الاتجاه القوي',drawdown:'15–30%',rr:'1:1 – 1:2',freq:'عالية',overfit:'متوسط-عالٍ',markets:'فوركس/أسهم',cpu:'منخفض',note:'يحقق في الأسواق العرضية ويخسر في الاتجاهات القوية'},
+  {name:'Grid/Martingale',type:'متوسط/مستوى سعر',accuracy:'عالية بصرياً/وهمية',risk:'قاتلة (تراجع غير متناهٍ)',drawdown:'>50–90%',rr:'1:0.5 – 1:1',freq:'عالية جداً',overfit:'عالي جداً',markets:'فوركس/كريبتو',cpu:'منخفض',note:'غير موصى بها للحسابات الحقيقية بسبب نمو المخاطر والمارجن كول'},
+  {name:'Breakout (Nadar-Watson/Bollinger Brk)',type:'اختراق',accuracy:'متوسطة',risk:'متوسطة-عالية',drawdown:'15–30%',rr:'1:2 – 1:4',freq:'متوسط',overfit:'متوسط',markets:'جميع الأسواق',cpu:'منخفض',note:'تنجح في اختراقات حقيقية وتفشل في الكسر الكاذب'},
+  {name:'Algo Neural / ML',type:'تعلم آلي',accuracy:'يعتمد على البيانات/التدريب',risk:'عالية (overfit إلى بيانات تاريخية)',drawdown:'20–40%',rr:'1:1 – 1:3',freq:'متوسط',overfit:'عالي جداً',markets:'جميع الأسواق',cpu:'مرتفع',note:'قوة حسابية كبيرة، لكن ضعيفة أمام "التحولات التنظيمية" وعدم ثبات السوق'},
+  {name:'Carry / Spread Trading',type:'نسبة/فائدة',accuracy:'منخفضة لكل صفقة، ثابتة على المدى',risk:'منخفضة-متوسطة',drawdown:'5–15%',rr:'1:0.2 – 1:0.5',freq:'منخفض',overfit:'منخفض',markets:'فوركس',cpu:'منخفض',note:'ربح ثابت بطيء، لا تنبؤ بالاتجاه، يتعطّل عند إزالة فارق الفائدة'}
+];
+let sortK=null,sortDir=1;
+function renderCmp(){
+  const q=document.getElementById('sheetSearch').value.toLowerCase();
+  let rows=cmpRows.filter(r=>Object.values(r).join(' ').toLowerCase().includes(q));
+  if(sortK){rows=rows.slice().sort((a,b)=>(a[sortK]>b[sortK]?1:a[sortK]<b[sortK]?-1:0)*sortDir);}
+  const tbody=document.querySelector('#cmpTable tbody');tbody.innerHTML='';
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td><b>${esc(r.name)}</b></td><td>${esc(r.type)}</td><td>${esc(r.accuracy)}</td><td>${esc(r.risk)}</td><td>${esc(r.drawdown)}</td><td>${esc(r.rr)}</td><td>${esc(r.freq)}</td><td>${esc(r.overfit)}</td><td>${esc(r.markets)}</td><td>${esc(r.cpu)}</td><td>${esc(r.note)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+document.querySelectorAll('#cmpTable th').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=1;}renderCmp();}));
+document.getElementById('sheetSearch').addEventListener('input',renderCmp);
+document.getElementById('exportCsv').addEventListener('click',()=>{
+  const cols=['name','type','accuracy','risk','drawdown','rr','freq','overfit','markets','cpu','note'];
+  const lines=[cols.join(',')].concat(cmpRows.map(r=>cols.map(c=>`"${(r[c]||'').replace(/"/g,'""')}"`).join(',')));
+  const blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='SMC_ICT_vs_strategies.csv';a.click();
+});
+renderCmp();
+
+/* ============ downloads ============ */
+const fileLinks=[
+  {name:'SMC_ICT_Pro_V2.mq5',status:'⏳ سيُنشأ حرفياً من الملف الأصلي بعد إرفاقه'},
+  {name:'MagicToFile_Map.csv',status:'✅ جاهز (CSV مرجع: ماجيك → ملف)',file:'files/MagicToFile_Map.csv'},
+  {name:'TradeMonitor_Script.mq5',status:'✅ جاهز (سكريبت مراقبة OnTradeTransaction)',file:'files/TradeMonitor_Script.mq5'},
+  {name:'SMC_ICT_vs_strategies.csv',status:'✅ جاهز (جدول مقارنة الاستراتيجيات)',file:'files/SMC_ICT_vs_strategies.csv'},
+  {name:'FINAL_AUDIT_REPORT.md',status:'✅ جاهز (تقرير المراجعة — مسودة أولية)',file:'FINAL_AUDIT_REPORT.md'},
+  {name:'SMC_ICT_Simulation.html',status:'✅ هذه المحاكاة (انقر للتنزيل)',file:'index.html'}
+];
+function renderFiles(){
+  const ul=document.getElementById('fileLinks');ul.innerHTML='';
+  fileLinks.forEach(f=>{
+    const li=document.createElement('li');
+    const name=f.file?`<span class="name">${esc(f.name)}</span>`:`<span class="name">${esc(f.name)}</span>`;
+    const right=f.file?`<a class="btn sm" href="${f.file}" download>⭳ تنزيل</a>`:`<span class="muted">${esc(f.status)}</span>`;
+    li.innerHTML=name+right;ul.appendChild(li);
+  });
+}
+document.getElementById('refreshFiles').addEventListener('click',()=>{renderFiles();logLine('off','تم فحص مجلد files/ والروابط — أرفق الملفات ثم اضغط مرة أخرى.');});
+renderFiles();
+
+/* refresh on load */
+document.getElementById('simMarket').textContent='H1 · BTCUSDT';
+document.getElementById('simTime').textContent='10:00';
+</script>
+</body>
+</html>

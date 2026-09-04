@@ -1,0 +1,8 @@
+Strategy,Type,Accuracy,Max_Drawdown_Typical,Avg_RR,Trade_Frequency,Overfit_Risk,Markets,CPU_Need,Notes
+SMC/ICT (this bot),Structure/Liquidity,Medium-High (conditional),10-25%,1:1.5 - 1:3,Low-Medium,Low,FX/Crypto/Stocks/Commodities,Low,Adapts to real price behavior; excels when liquidity sweeps and structure rules are strict
+Trend Following (SMA/Donchian),Trend,Medium in trends,20-35%,1:3 - 1:5,Low,Low-Medium,All markets,Very low,Simple but lags at trend start and suffers whipsaws in ranges
+Mean Reversion (RSI/Bollinger),Reversion,High in ranges,15-30%,1:1 - 1:2,High,Medium-High,FX/Stocks,Low,Good in ranges, dangerous in strong trends
+Grid/Martingale,Grid/Price averaging,Visually high (illusory),>50-90%,1:0.5 - 1:1,Very high,Very high,FX/Crypto,Low,Not recommended for live due to exponential risk and margin calls
+Breakout (Bollinger/Channel Brk),Breakout,Medium,15-30%,1:2 - 1:4,Medium,Medium,All markets,Low,Wins on real breakouts, loses on false breakouts
+Neural/ML Algo,ML learning,Data dependent,20-40%,1:1 - 1:3,Medium,Very high,All markets,High,Computationally heavy; often overfits historical regimes and fails in regime shifts
+Carry/Spread Trading,Rates/Spread,Per-trade low steady,5-15%,1:0.2 - 1:0.5,Low,Low,FX,Low,Steady slow returns; no directional prediction; stops working when rate differential disappears
