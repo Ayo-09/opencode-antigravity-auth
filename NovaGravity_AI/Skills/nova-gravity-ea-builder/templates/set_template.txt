@@ -1,0 +1,24 @@
+; -----------------------------------------------------------------
+;  NOVA GRAVITY AI - <PROFILE NAME>
+;  Format: InputName=Value   (strings quoted, bools true/false, enums as ordinals)
+;  Import: chart -> right-click EA -> Properties -> Inputs -> Load
+; -----------------------------------------------------------------
+InpID="NOVA-GRAVITY-AI"
+InpMagicNumber=345678
+InpAutoDetectSymbol=true
+InpAutoDetectTimeframe=true
+InpRiskMode=1
+InpRiskPercent=1.0
+InpDailyLossLimitPercent=3.0
+InpFridayCutoffHour=20
+InpFridayLeadMinutes=60
+InpFridayAction=0
+InpNewsFilter=true
+InpNewsBlockStart=13
+InpNewsBlockEnd=16
+InpServerGmtOffset=999
+InpPartialCloseEnabled=true
+InpPartialCloseAtRR=1.0
+InpBreakEvenAfterPartial=true
+InpTimeExitEnabled=true
+InpMaxHoldBars=0
