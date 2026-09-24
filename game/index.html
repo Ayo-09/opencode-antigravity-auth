@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>عرش الهاوية: شظايا النور — الفصل الأول</title>
+<meta name="description" content="لعبة أكشن خيالية: آزر، حارس اللهب الأخير، يواجه غاروك آكل السهول.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="game.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- ====== أزرار التحكم باللمس ====== -->
+<div id="touch">
+  <div class="tbtn" id="t-atk">الهجوم</div>
+  <div class="tbtn" id="t-dash">الاندفاع</div>
+  <div class="tbtn" id="t-phx">العنقاء</div>
+</div>
+<div id="joy"><div id="knob"></div></div>
+
+<button id="pause-btn" class="hidden" aria-label="إيقاف مؤقت">II</button>
+<div id="rotate-hint" class="hidden">⟳ تجربة أفضل على الجانب</div>
+
+<!-- ====== شاشة البداية ====== -->
+<div class="overlay" id="ov-start">
+  <div class="panel wide">
+    <div class="title-block">
+      <div class="title-main">عرش الهاوية</div>
+      <div class="title-sub">شظايا النور</div>
+      <div class="chapter">الفصل الأول — سهول البداية</div>
+    </div>
+    <p class="lore">«فجرت السماء فوق فجرين، وسقطت الشظية… والفساد ينبض من تحت الأرض.»</p>
+    <p class="promise">قاتل بمهارتك · طوّر بطلك · واكتشف الحقيقة خلف الصدع</p>
+
+    <div class="cols">
+      <div class="col">
+        <h3>التحكم — لوحة المفاتيح</h3>
+        <ul class="ctrl">
+          <li><span>التحرك</span><span><kbd>W A S D</kbd> / <kbd>الأسهم</kbd></span></li>
+          <li><span>الهجوم — ضربة اللهب</span><span><kbd>J</kbd> / <kbd>مسافة</kbd></span></li>
+          <li><span>تفادي — اندفاع الجمر</span><span><kbd>K</kbd> / <kbd>Shift</kbd></span></li>
+          <li><span>قلب العنقاء — انفجار وشفاء</span><span><kbd>L</kbd></span></li>
+          <li><span>إيقاف مؤقت / كتم الصوت</span><span><kbd>P</kbd> / <kbd>M</kbd></span></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>كيف تلعب</h3>
+        <ul class="howto">
+          <li>اضرب لرفع <b class="fire">حرارة اللهب</b>؛ عند الامتلاء يشتعل «اللهب المتوج».</li>
+          <li>قرنا غاروك ينفعلان <b class="fire">برتقاليًا</b> بعد اصطدامه بالأعمدة — ركّز هجومك هناك.</li>
+          <li>تفادِ اندفاع الذئاب بالاندفاع لتوقفها عن موضعها.</li>
+          <li><b class="bad">لا تضرب غاروك بعد إغلاق النافذة</b>… فالطُمع موجع.</li>
+          <li>حارس الحقل مدرّج من الأمام — استدر خلفه.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="hs-box">
+      <h3>أفضل النتائج <span class="local">(محلي)</span></h3>
+      <div id="hs-list"></div>
+      <div id="bank-line" class="bank-line"></div>
+    </div>
+
+    <button class="btn primary big" id="btn-start">ابدأ المعركة</button>
+    <button class="btn ghost" id="btn-skills" style="margin-top:10px">شجرة المهارات <span class="kbd-hint">(T)</span></button>
+    <div class="foot">كل المكافآت تُكسب باللعب — لا دفع إجباري ولا إعلانات مزعجة · v0.2</div>
+  </div>
+</div>
+
+<!-- ====== شجرة المهارات ====== -->
+<div class="overlay hidden" id="ov-skills">
+  <div class="panel skills-panel">
+    <div class="skills-head">
+      <h2 class="p-title" style="margin:0">شجرة المهارات</h2>
+      <div class="skills-bank">شظايا الروح: <b id="skill-shards">0</b></div>
+      <button class="btn ghost small" id="btn-skills-close">إغلاق <span class="kbd-hint">(Esc)</span></button>
+    </div>
+    <div class="skills-grid" id="skills-grid"></div>
+    <div class="foot">تُفتح العقد بالترتيب داخل كل طريق — والعقد النهائية ◆ تتطلب إكمال سبلك</div>
+  </div>
+</div>
+
+<!-- ====== الإيقاف المؤقت ====== -->
+<div class="overlay hidden" id="ov-pause">
+  <div class="panel">
+    <h2 class="p-title">إيقاف مؤقت</h2>
+    <div class="btn-col">
+      <button class="btn primary" id="btn-resume">استئناف <span class="kbd-hint">(P)</span></button>
+      <button class="btn ghost" id="btn-skills-p">شجرة المهارات <span class="kbd-hint">(T)</span></button>
+      <button class="btn ghost" id="btn-restart-p">إعادة من البداية</button>
+      <button class="btn ghost" id="btn-menu-p">القائمة الرئيسية</button>
+      <button class="btn ghost" id="btn-mute">كتم الصوت: <span id="mute-label">مفعّل</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== نهاية اللعبة ====== -->
+<div class="overlay hidden" id="ov-over">
+  <div class="panel">
+    <h2 class="p-title dead">سقط آزر…</h2>
+    <div class="stat-row"><span>النقاط</span><b id="over-score">0</b></div>
+    <div class="stat-row"><span>وصلت إلى</span><b id="over-wave">الموجة 1</b></div>
+    <div class="stat-row"><span>أفضل نتيجة</span><b id="over-best">0</b></div>
+    <div class="stat-row saved" id="over-saved"></div>
+    <div class="btn-col">
+      <button class="btn primary" id="btn-restart">إعادة فورية <span class="kbd-hint">(R)</span></button>
+      <button class="btn ghost" id="btn-menu-o">القائمة الرئيسية</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== النصر ====== -->
+<div class="overlay hidden" id="ov-win">
+  <div class="panel">
+    <h2 class="p-title win">هُزم غاروك، آكل السهول!</h2>
+    <div id="win-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
+    <div id="win-rewards"></div>
+    <div class="stat-row"><span>النقاط</span><b id="win-score">0</b></div>
+    <div class="stat-row"><span>أفضل نتيجة</span><b id="win-best">0</b></div>
+    <div class="stat-row new-record" id="win-new">رقم قياسي جديد!</div>
+    <p class="lore small">انسحب غاروك تاركًا شظية سوداء… الطريق إلى كهف الهاوية مفتوح.</p>
+    <div class="btn-col">
+      <button class="btn primary" id="btn-again">العب من جديد <span class="kbd-hint">(R)</span></button>
+      <button class="btn ghost" id="btn-menu-w">القائمة الرئيسية</button>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
